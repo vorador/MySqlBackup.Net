@@ -10,9 +10,9 @@ namespace MySqlBackupTestApp
 {
     public partial class FormMain : Form
     {
-        string ConnectionSettingFile = System.IO.Path.Combine(Environment.CurrentDirectory, "ConnectionSettings.txt");
-        List<Form> lstForm = new List<Form>();
-        bool stopWrite = true;
+        private readonly string _connectionSettingFile = System.IO.Path.Combine(Environment.CurrentDirectory, "ConnectionSettings.txt");
+        private readonly List<Form> _lstForm = new List<Form>();
+        private bool _stopWrite = true;
 
         public FormMain()
         {
@@ -24,36 +24,36 @@ namespace MySqlBackupTestApp
         private void FormMain_Load(object sender, EventArgs e)
         {
             OpenForm(typeof(FormTestSimple));
-            stopWrite = false;
+            _stopWrite = false;
         }
 
         private void FormMain_SizeChanged(object sender, EventArgs e)
         {
             this.SuspendLayout();
 
-            for (int i = 0; i < lstForm.Count; i++)
+            for (int i = 0; i < _lstForm.Count; i++)
             {
-                lstForm[i].WindowState = FormWindowState.Normal;
-                lstForm[i].WindowState = FormWindowState.Maximized;
+                _lstForm[i].WindowState = FormWindowState.Normal;
+                _lstForm[i].WindowState = FormWindowState.Maximized;
             }
 
             this.ResumeLayout(true);
         }
 
-        void OpenForm(Type formType)
+        private void OpenForm(Type formType)
         {
             this.SuspendLayout();
 
             try
             {
-                for (int i = 0; i < lstForm.Count; i++)
+                for (int i = 0; i < _lstForm.Count; i++)
                 {
-                    lstForm[i].Close();
-                    lstForm[i].Dispose();
-                    lstForm[i] = null;
+                    _lstForm[i].Close();
+                    _lstForm[i].Dispose();
+                    _lstForm[i] = null;
                 }
 
-                lstForm.Clear();
+                _lstForm.Clear();
 
                 Form form = (Form)Activator.CreateInstance(formType);
                 form.WindowState = FormWindowState.Maximized;
@@ -63,7 +63,7 @@ namespace MySqlBackupTestApp
                 panel1.Controls.Add(form);
                 form.Show();
 
-                lstForm.Add(form);
+                _lstForm.Add(form);
             }
             catch (Exception ex)
             {
@@ -108,15 +108,15 @@ namespace MySqlBackupTestApp
         {
             OpenForm(typeof(FormDumpFileViewer));
 
-            for (int i = 0; i < lstForm.Count; i++)
+            for (int i = 0; i < _lstForm.Count; i++)
             {
-                if (lstForm[i].GetType() == typeof(FormDumpFileViewer))
+                if (_lstForm[i].GetType() == typeof(FormDumpFileViewer))
                 {
                     if (Program.TargetFile == "")
                     { }
                     else 
                     {
-                        ((FormDumpFileViewer)lstForm[i]).OpenTargetFile();
+                        ((FormDumpFileViewer)_lstForm[i]).OpenTargetFile();
                     }
                     break;
                 }
@@ -225,13 +225,13 @@ namespace MySqlBackupTestApp
             OpenForm(typeof(FormTestModifyHeadersFooters));
         }
 
-        void LoadSettings()
+        private void LoadSettings()
         {
             try
             {
-                if (System.IO.File.Exists(ConnectionSettingFile))
+                if (System.IO.File.Exists(_connectionSettingFile))
                 {
-                    textBox_Connection.Text = System.IO.File.ReadAllText(ConnectionSettingFile);
+                    textBox_Connection.Text = System.IO.File.ReadAllText(_connectionSettingFile);
                     cbAutosave.Checked = true;
                 }
                 else
@@ -249,21 +249,21 @@ namespace MySqlBackupTestApp
             }
         }
 
-        bool WriteSettings(bool forceSave)
+        private bool WriteSettings(bool forceSave)
         {
             try
             {
-                if (stopWrite)
+                if (_stopWrite)
                     return false;
 
                 if (forceSave)
                 {
-                    System.IO.File.WriteAllText(ConnectionSettingFile, textBox_Connection.Text);
+                    System.IO.File.WriteAllText(_connectionSettingFile, textBox_Connection.Text);
                 }
                 else
                 {
-                    if (System.IO.File.Exists(ConnectionSettingFile))
-                        System.IO.File.WriteAllText(ConnectionSettingFile, textBox_Connection.Text);
+                    if (System.IO.File.Exists(_connectionSettingFile))
+                        System.IO.File.WriteAllText(_connectionSettingFile, textBox_Connection.Text);
                 }
                 return true;
             }
@@ -276,21 +276,21 @@ namespace MySqlBackupTestApp
 
         private void cbAutosave_CheckedChanged(object sender, EventArgs e)
         {
-            if (stopWrite)
+            if (_stopWrite)
                 return;
 
             if (cbAutosave.Checked)
             {
                 if (WriteSettings(true))
                 {
-                    MessageBox.Show("Automatic save enabled." + Environment.NewLine + "Connection String saved at" + Environment.NewLine + Environment.NewLine + ConnectionSettingFile, "Saving Connection String");
+                    MessageBox.Show("Automatic save enabled." + Environment.NewLine + "Connection String saved at" + Environment.NewLine + Environment.NewLine + _connectionSettingFile, "Saving Connection String");
                 }
             }
             else
             {
                 try
                 {
-                    System.IO.File.Delete(ConnectionSettingFile);
+                    System.IO.File.Delete(_connectionSettingFile);
                 }
                 catch { }
             }

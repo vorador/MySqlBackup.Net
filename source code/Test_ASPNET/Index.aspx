@@ -124,7 +124,7 @@
                                             </tr>
                                             <tr>
                                                 <td>
-                                                    <asp:Button ID="btRestore" runat="server" CssClass="submit_btn" Text="Restore / Import Database" OnClick="btImport" /></td>
+                                                    <asp:Button ID="btRestore" runat="server" CssClass="submit_btn" Text="Restore / Import Database" OnClick="BtImport" /></td>
                                                 <td>Dump File:
                                                     <asp:FileUpload ID="FileUpload1" onchange="return checkFileExtension(this);" runat="server" /><br />
                                                     <i>(Support file type of SQL or ZIP)</i></td>

@@ -19,7 +19,7 @@ namespace MySqlBackupTestApp
             OpenFile(Program.TargetFile);
         }
 
-        void OpenFile(string file)
+        private void OpenFile(string file)
         {
             if (file == "")
             {

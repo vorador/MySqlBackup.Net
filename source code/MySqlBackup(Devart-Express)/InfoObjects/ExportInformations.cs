@@ -9,15 +9,13 @@ namespace Devart.Data.MySql
     /// </summary>
     public class ExportInformations
     {
-        int _interval = 100;
-        string _delimiter = "|";
+        private int _interval = 100;
+        private string _delimiter = "|";
 
-        List<string> _documentHeaders = null;
-        List<string> _documentFooters = null;
+        private List<string> _documentHeaders = null;
+        private List<string> _documentFooters = null;
 
-        Dictionary<string, string> _customTable = new Dictionary<string, string>();
-
-        List<string> _lstExcludeTables = null;
+        private List<string> _lstExcludeTables = null;
         
         /// <summary>
         /// Gets or Sets the tables (black list) that will be excluded for export. The rows of the these tables will not be exported too.
@@ -111,7 +109,7 @@ namespace Devart.Data.MySql
             get
             {
                 List<string> lst = new List<string>();
-                foreach (KeyValuePair<string, string> kv in _customTable)
+                foreach (KeyValuePair<string, string> kv in TablesToBeExportedDic)
                 {
                     lst.Add(kv.Key);
                 }
@@ -119,10 +117,10 @@ namespace Devart.Data.MySql
             }
             set
             {
-                _customTable.Clear();
+                TablesToBeExportedDic.Clear();
                 foreach (string s in value)
                 {
-                    _customTable[s] = string.Format("SELECT * FROM `{0}`;", s);
+                    TablesToBeExportedDic[s] = string.Format("SELECT * FROM `{0}`;", s);
                 }
             }
         }
@@ -130,17 +128,7 @@ namespace Devart.Data.MySql
         /// <summary>
         /// Gets or Sets the tables that will be exported with custom SELECT defined. If none or empty, all tables and rows will be exported. Key = Table's Name. Value = Custom SELECT Statement. Example 1: SELECT * FROM `product` WHERE `category` = 1; Example 2: SELECT `name`,`description` FROM `product`;
         /// </summary>
-        public Dictionary<string, string> TablesToBeExportedDic
-        {
-            get
-            {
-                return _customTable;
-            }
-            set
-            {
-                _customTable = value;
-            }
-        }
+        public Dictionary<string, string> TablesToBeExportedDic { get; set; } = new Dictionary<string, string>();
 
         /// <summary>
         /// Gets or Sets a value indicates whether the Dump Time should recorded in dump file.

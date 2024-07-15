@@ -9,7 +9,7 @@ namespace Devart.Data.MySql
 {
     public class MySqlBackup : IDisposable
     {
-        enum ProcessType
+        private enum ProcessType
         {
             Export,
             Import
@@ -26,10 +26,7 @@ namespace Devart.Data.MySql
         public static string Version =>
             typeof(MySqlBackup).Assembly.GetName().Version.ToString();
 
-        MySqlDatabase _database = new MySqlDatabase();
-        MySqlServer _server = new MySqlServer();
-
-        Encoding textEncoding
+        private Encoding TextEncoding
         {
             get
             {
@@ -43,33 +40,31 @@ namespace Devart.Data.MySql
             }
         }
 
-        TextWriter textWriter;
-        TextReader textReader;
-        DateTime timeStart;
-        DateTime timeEnd;
-        ProcessType currentProcess;
+        private TextWriter _textWriter;
+        private TextReader _textReader;
+        private DateTime _timeStart;
+        private DateTime _timeEnd;
+        private ProcessType _currentProcess;
 
-        ProcessEndType processCompletionType;
-        bool stopProcess = false;
-        Exception _lastError = null;
-        string _lastErrorSql = string.Empty;
+        private ProcessEndType _processCompletionType;
+        private bool _stopProcess = false;
 
-        string _currentTableName = string.Empty;
-        long _totalRowsInCurrentTable = 0;
-        long _totalRowsInAllTables = 0;
-        long _currentRowIndexInCurrentTable = 0;
-        long _currentRowIndexInAllTable = 0;
-        int _totalTables = 0;
-        int _currentTableIndex = 0;
-        Timer timerReport = null;
+        private string _currentTableName = string.Empty;
+        private long _totalRowsInCurrentTable = 0;
+        private long _totalRowsInAllTables = 0;
+        private long _currentRowIndexInCurrentTable = 0;
+        private long _currentRowIndexInAllTable = 0;
+        private int _totalTables = 0;
+        private int _currentTableIndex = 0;
+        private Timer _timerReport = null;
 
-        long _currentBytes = 0L;
-        long _totalBytes = 0L;
-        StringBuilder _sbImport = null;
-        MySqlScript _mySqlScript = null;
-        string _delimiter = string.Empty;
+        private long _currentBytes = 0L;
+        private long _totalBytes = 0L;
+        private StringBuilder _sbImport = null;
+        private MySqlScript _mySqlScript = null;
+        private string _delimiter = string.Empty;
 
-        enum NextImportAction
+        private enum NextImportAction
         {
             Ignore,
             SetNames,
@@ -79,17 +74,19 @@ namespace Devart.Data.MySql
             AppendLineAndExecute
         }
 
-        public Exception LastError { get { return _lastError; } }
-        public string LastErrorSQL { get { return _lastErrorSql; } }
+        public Exception LastError { get; private set; } = null;
+        public string LastErrorSql { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the information about the connected database.
         /// </summary>
-        public MySqlDatabase Database { get { return _database; } }
+        public MySqlDatabase Database { get; } = new MySqlDatabase();
+
         /// <summary>
         /// Gets the information about the connected MySQL server.
         /// </summary>
-        public MySqlServer Server { get { return _server; } }
+        public MySqlServer Server { get; private set; } = new MySqlServer();
+
         /// <summary>
         /// Gets or Sets the instance of MySqlCommand.
         /// </summary>
@@ -98,20 +95,20 @@ namespace Devart.Data.MySql
         public ExportInformations ExportInfo = new ExportInformations();
         public ImportInformations ImportInfo = new ImportInformations();
 
-        public delegate void exportProgressChange(object sender, ExportProgressArgs e);
-        public event exportProgressChange ExportProgressChanged;
+        public delegate void ExportProgressChange(object sender, ExportProgressArgs e);
+        public event ExportProgressChange ExportProgressChanged;
 
-        public delegate void exportComplete(object sender, ExportCompleteArgs e);
-        public event exportComplete ExportCompleted;
+        public delegate void ExportComplete(object sender, ExportCompleteArgs e);
+        public event ExportComplete ExportCompleted;
 
-        public delegate void importProgressChange(object sender, ImportProgressArgs e);
-        public event importProgressChange ImportProgressChanged;
+        public delegate void ImportProgressChange(object sender, ImportProgressArgs e);
+        public event ImportProgressChange ImportProgressChanged;
 
-        public delegate void importComplete(object sender, ImportCompleteArgs e);
-        public event importComplete ImportCompleted;
+        public delegate void ImportComplete(object sender, ImportCompleteArgs e);
+        public event ImportComplete ImportCompleted;
 
-        public delegate void getTotalRowsProgressChange(object sender, GetTotalRowsArgs e);
-        public event getTotalRowsProgressChange GetTotalRowsProgressChanged;
+        public delegate void GetTotalRowsProgressChange(object sender, GetTotalRowsArgs e);
+        public event GetTotalRowsProgressChange GetTotalRowsProgressChanged;
 
         public MySqlBackup()
         {
@@ -124,18 +121,18 @@ namespace Devart.Data.MySql
             Command = cmd;
         }
 
-        void InitializeComponents()
+        private void InitializeComponents()
         {
             //AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-            _database.GetTotalRowsProgressChanged += _database_GetTotalRowsProgressChanged;
+            Database.GetTotalRowsProgressChanged += _database_GetTotalRowsProgressChanged;
 
-            timerReport = new Timer();
-            timerReport.Elapsed += timerReport_Elapsed;
+            _timerReport = new Timer();
+            _timerReport.Elapsed += timerReport_Elapsed;
 
             //textEncoding = new UTF8Encoding(false);
         }
 
-        void _database_GetTotalRowsProgressChanged(object sender, GetTotalRowsArgs e)
+        private void _database_GetTotalRowsProgressChanged(object sender, GetTotalRowsArgs e)
         {
             if (GetTotalRowsProgressChanged != null)
             {
@@ -167,16 +164,16 @@ namespace Devart.Data.MySql
                 Directory.CreateDirectory(dir);
             }
 
-            using (textWriter = new StreamWriter(filePath, false, textEncoding))
+            using (_textWriter = new StreamWriter(filePath, false, TextEncoding))
             {
                 ExportStart();
-                textWriter.Close();
+                _textWriter.Close();
             }
         }
 
         public void ExportToTextWriter(TextWriter tw)
         {
-            textWriter = tw;
+            _textWriter = tw;
             ExportStart();
         }
 
@@ -196,7 +193,7 @@ namespace Devart.Data.MySql
                 ms.Position = 0L;
             }
 
-            textWriter = new StreamWriter(ms, textEncoding);
+            _textWriter = new StreamWriter(ms, TextEncoding);
             ExportStart();
         }
 
@@ -205,11 +202,11 @@ namespace Devart.Data.MySql
             if (sm.CanSeek)
                 sm.Seek(0, SeekOrigin.Begin);
 
-            textWriter = new StreamWriter(sm, textEncoding);
+            _textWriter = new StreamWriter(sm, TextEncoding);
             ExportStart();
         }
 
-        void ExportStart()
+        private void ExportStart()
         {
             try
             {
@@ -219,7 +216,7 @@ namespace Devart.Data.MySql
 
                 while (stage < 11)
                 {
-                    if (stopProcess) break;
+                    if (_stopProcess) break;
 
                     switch (stage)
                     {
@@ -236,17 +233,17 @@ namespace Devart.Data.MySql
                         default: break;
                     }
 
-                    textWriter.Flush();
+                    _textWriter.Flush();
 
                     stage = stage + 1;
                 }
 
-                if (stopProcess) processCompletionType = ProcessEndType.Cancelled;
-                else processCompletionType = ProcessEndType.Complete;
+                if (_stopProcess) _processCompletionType = ProcessEndType.Cancelled;
+                else _processCompletionType = ProcessEndType.Complete;
             }
             catch (Exception ex)
             {
-                _lastError = ex;
+                LastError = ex;
                 StopAllProcess();
                 throw;
             }
@@ -256,7 +253,7 @@ namespace Devart.Data.MySql
             }
         }
 
-        void Export_InitializeVariables()
+        private void Export_InitializeVariables()
         {
             if (Command == null)
             {
@@ -279,62 +276,62 @@ namespace Devart.Data.MySql
                 throw new Exception("[ExportInfo.BlobExportMode = BlobDataExportMode.BinaryString] is still under development. Please join the discussion at https://github.com/MySqlBackupNET/MySqlBackup.Net/issues (Title: Help requires. Unable to export BLOB in Char Format)");
             }
 
-            timeStart = DateTime.Now;
+            _timeStart = DateTime.Now;
 
-            stopProcess = false;
-            processCompletionType = ProcessEndType.UnknownStatus;
-            currentProcess = ProcessType.Export;
-            _lastError = null;
-            timerReport.Interval = ExportInfo.IntervalForProgressReport;
+            _stopProcess = false;
+            _processCompletionType = ProcessEndType.UnknownStatus;
+            _currentProcess = ProcessType.Export;
+            LastError = null;
+            _timerReport.Interval = ExportInfo.IntervalForProgressReport;
             //GetSHA512HashFromPassword(ExportInfo.EncryptionPassword);
 
-            _database.GetDatabaseInfo(Command, ExportInfo.GetTotalRowsMode);
-            _server.GetServerInfo(Command);
+            Database.GetDatabaseInfo(Command, ExportInfo.GetTotalRowsMode);
+            Server.GetServerInfo(Command);
             _currentTableName = string.Empty;
             _totalRowsInCurrentTable = 0L;
             _totalRowsInAllTables = Export_GetTablesToBeExported()
-                .Sum(pair => _database.Tables[pair.Key].TotalRows);
+                .Sum(pair => Database.Tables[pair.Key].TotalRows);
             _currentRowIndexInCurrentTable = 0;
             _currentRowIndexInAllTable = 0;
             _totalTables = 0;
             _currentTableIndex = 0;
         }
 
-        void Export_BasicInfo()
+        private void Export_BasicInfo()
         {
             Export_WriteComment(string.Format("MySqlBackup.NET {0}", Version));
 
             if (ExportInfo.RecordDumpTime)
-                Export_WriteComment(string.Format("Dump Time: {0}", timeStart.ToString("yyyy-MM-dd HH:mm:ss")));
+                Export_WriteComment(string.Format("Dump Time: {0}", _timeStart.ToString("yyyy-MM-dd HH:mm:ss")));
             else
                 Export_WriteComment(string.Empty);
 
             Export_WriteComment("--------------------------------------");
-            Export_WriteComment(string.Format("Server version {0}", _server.Version));
-            textWriter.WriteLine();
+            Export_WriteComment(string.Format("Server version {0}", Server.Version));
+            _textWriter.WriteLine();
         }
 
-        void Export_CreateDatabase()
+        private void Export_CreateDatabase()
         {
             if (!ExportInfo.AddCreateDatabase && !ExportInfo.AddDropDatabase)
                 return;
 
-            textWriter.WriteLine();
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
+            _textWriter.WriteLine();
             if (ExportInfo.AddDropDatabase)
-                Export_WriteLine(String.Format("DROP DATABASE `{0}`;", _database.Name));
+                Export_WriteLine(String.Format("DROP DATABASE `{0}`;", Database.Name));
             if (ExportInfo.AddCreateDatabase)
             {
-                Export_WriteLine(_database.CreateDatabaseSQL);
-                Export_WriteLine(string.Format("USE `{0}`;", _database.Name));
+                Export_WriteLine(Database.CreateDatabaseSql);
+                Export_WriteLine(string.Format("USE `{0}`;", Database.Name));
             }
-            textWriter.WriteLine();
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
+            _textWriter.WriteLine();
         }
 
-        void Export_DocumentHeader()
+        private void Export_DocumentHeader()
         {
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             List<string> lstHeaders = ExportInfo.GetDocumentHeaders(Command);
             if (lstHeaders.Count > 0)
@@ -344,12 +341,12 @@ namespace Devart.Data.MySql
                     Export_WriteLine(s);
                 }
 
-                textWriter.WriteLine();
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
         }
 
-        void Export_TableRows()
+        private void Export_TableRows()
         {
             Dictionary<string, string> dicTables = Export_GetTablesToBeExportedReArranged();
 
@@ -358,15 +355,15 @@ namespace Devart.Data.MySql
             if (ExportInfo.ExportTableStructure || ExportInfo.ExportRows)
             {
                 if (ExportProgressChanged != null)
-                    timerReport.Start();
+                    _timerReport.Start();
 
                 foreach (KeyValuePair<string, string> kvTable in dicTables)
                 {
-                    if (stopProcess)
+                    if (_stopProcess)
                         return;
 
                     string tableName = kvTable.Key;
-                    string selectSQL = kvTable.Value;
+                    string selectSql = kvTable.Value;
 
                     bool exclude = Export_ThisTableIsExcluded(tableName);
                     if (exclude)
@@ -376,18 +373,18 @@ namespace Devart.Data.MySql
 
                     _currentTableName = tableName;
                     _currentTableIndex = _currentTableIndex + 1;
-                    _totalRowsInCurrentTable = _database.Tables[tableName].TotalRows;
+                    _totalRowsInCurrentTable = Database.Tables[tableName].TotalRows;
 
                     if (ExportInfo.ExportTableStructure)
                         Export_TableStructure(tableName);
 
                     if (ExportInfo.ExportRows)
-                        Export_Rows(tableName, selectSQL);
+                        Export_Rows(tableName, selectSql);
                 }
             }
         }
 
-        bool Export_ThisTableIsExcluded(string tableName)
+        private bool Export_ThisTableIsExcluded(string tableName)
         {
             string tableNameLower = tableName.ToLower();
 
@@ -400,38 +397,38 @@ namespace Devart.Data.MySql
             return false;
         }
 
-        void Export_TableStructure(string tableName)
+        private void Export_TableStructure(string tableName)
         {
-            if (stopProcess)
+            if (_stopProcess)
                 return;
 
             Export_WriteComment(string.Empty);
             Export_WriteComment(string.Format("Definition of {0}", tableName));
             Export_WriteComment(string.Empty);
 
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             if (ExportInfo.AddDropTable)
                 Export_WriteLine(string.Format("DROP TABLE IF EXISTS `{0}`;", tableName));
 
             if (ExportInfo.ResetAutoIncrement)
-                Export_WriteLine(_database.Tables[tableName].CreateTableSqlWithoutAutoIncrement);
+                Export_WriteLine(Database.Tables[tableName].CreateTableSqlWithoutAutoIncrement);
             else
-                Export_WriteLine(_database.Tables[tableName].CreateTableSql);
+                Export_WriteLine(Database.Tables[tableName].CreateTableSql);
 
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        Dictionary<string, string> Export_GetTablesToBeExportedReArranged()
+        private Dictionary<string, string> Export_GetTablesToBeExportedReArranged()
         {
             var dic = Export_GetTablesToBeExported();
 
             Dictionary<string, string> dic2 = new Dictionary<string, string>();
             foreach (var kv in dic)
             {
-                dic2[kv.Key] = _database.Tables[kv.Key].CreateTableSql;
+                dic2[kv.Key] = Database.Tables[kv.Key].CreateTableSql;
             }
 
             var lst = Export_ReArrangeDependencies(dic2, "foreign key", "`");
@@ -444,18 +441,18 @@ namespace Devart.Data.MySql
             if (ExportInfo.TablesToBeExportedDic is null ||
                 ExportInfo.TablesToBeExportedDic.Count == 0)
             {
-                return _database.Tables
+                return Database.Tables
                     .ToDictionary(
                         table => table.Name,
                         table => string.Format("SELECT * FROM `{0}`;", table.Name));
             }
 
             return ExportInfo.TablesToBeExportedDic
-                .Where(table => _database.Tables.Contains(table.Key))
+                .Where(table => Database.Tables.Contains(table.Key))
                 .ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
-        List<string> Export_ReArrangeDependencies(Dictionary<string, string> dic1, string splitKeyword, string keyNameWrapper)
+        private List<string> Export_ReArrangeDependencies(Dictionary<string, string> dic1, string splitKeyword, string keyNameWrapper)
         {
             List<string> lst = new List<string>();
             HashSet<string> index = new HashSet<string>();
@@ -498,9 +495,9 @@ namespace Devart.Data.MySql
                         if (index.Contains(kv2.Key))
                             continue;
 
-                        string _thisTBname = string.Format("{0}{1}{0}", keyNameWrapper, kv2.Key.ToLower());
+                        string thisTBname = string.Format("{0}{1}{0}", keyNameWrapper, kv2.Key.ToLower());
 
-                        if (referenceInfo.Contains(_thisTBname))
+                        if (referenceInfo.Contains(thisTBname))
                         {
                             allReferencedAdded = false;
                             break;
@@ -532,28 +529,28 @@ namespace Devart.Data.MySql
             return lst;
         }
 
-        void Export_Rows(string tableName, string selectSQL)
+        private void Export_Rows(string tableName, string selectSql)
         {
             Export_WriteComment(string.Empty);
             Export_WriteComment(string.Format("Dumping data for table {0}", tableName));
             Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
             Export_WriteLine(string.Format("/*!40000 ALTER TABLE `{0}` DISABLE KEYS */;", tableName));
 
             if (ExportInfo.WrapWithinTransaction)
                 Export_WriteLine("START TRANSACTION;");
 
-            Export_RowsData(tableName, selectSQL);
+            Export_RowsData(tableName, selectSql);
 
             if (ExportInfo.WrapWithinTransaction)
                 Export_WriteLine("COMMIT;");
 
             Export_WriteLine(string.Format("/*!40000 ALTER TABLE `{0}` ENABLE KEYS */;", tableName));
-            textWriter.WriteLine();
-            textWriter.Flush();
+            _textWriter.WriteLine();
+            _textWriter.Flush();
         }
 
-        void Export_RowsData(string tableName, string selectSQL)
+        private void Export_RowsData(string tableName, string selectSql)
         {
             _currentRowIndexInCurrentTable = 0L;
 
@@ -561,23 +558,23 @@ namespace Devart.Data.MySql
                 ExportInfo.RowsExportMode == RowsDataExportMode.InsertIgnore ||
                 ExportInfo.RowsExportMode == RowsDataExportMode.Replace)
             {
-                Export_RowsData_Insert_Ignore_Replace(tableName, selectSQL);
+                Export_RowsData_Insert_Ignore_Replace(tableName, selectSql);
             }
             else if (ExportInfo.RowsExportMode == RowsDataExportMode.OnDuplicateKeyUpdate)
             {
-                Export_RowsData_OnDuplicateKeyUpdate(tableName, selectSQL);
+                Export_RowsData_OnDuplicateKeyUpdate(tableName, selectSql);
             }
             else if (ExportInfo.RowsExportMode == RowsDataExportMode.Update)
             {
-                Export_RowsData_Update(tableName, selectSQL);
+                Export_RowsData_Update(tableName, selectSql);
             }
         }
 
-        void Export_RowsData_Insert_Ignore_Replace(string tableName, string selectSQL)
+        private void Export_RowsData_Insert_Ignore_Replace(string tableName, string selectSql)
         {
-            MySqlTable table = _database.Tables[tableName];
+            MySqlTable table = Database.Tables[tableName];
 
-            Command.CommandText = selectSQL;
+            Command.CommandText = selectSql;
             MySqlDataReader rdr = Command.ExecuteReader();
 
             string insertStatementHeader = null;
@@ -586,7 +583,7 @@ namespace Devart.Data.MySql
 
             while (rdr.Read())
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
                 _currentRowIndexInAllTable = _currentRowIndexInAllTable + 1;
@@ -620,7 +617,7 @@ namespace Devart.Data.MySql
                     sb.AppendFormat(";");
 
                     Export_WriteLine(sb.ToString());
-                    textWriter.Flush();
+                    _textWriter.Flush();
 
                     sb = new StringBuilder((int)ExportInfo.MaxSqlLength);
                     sb.AppendLine(insertStatementHeader);
@@ -636,14 +633,14 @@ namespace Devart.Data.MySql
             }
 
             Export_WriteLine(sb.ToString());
-            textWriter.Flush();
+            _textWriter.Flush();
 
             sb = null;
         }
 
-        void Export_RowsData_OnDuplicateKeyUpdate(string tableName, string selectSQL)
+        private void Export_RowsData_OnDuplicateKeyUpdate(string tableName, string selectSql)
         {
-            MySqlTable table = _database.Tables[tableName];
+            MySqlTable table = Database.Tables[tableName];
 
             bool allPrimaryField = true;
             foreach (var col in table.Columns)
@@ -655,12 +652,12 @@ namespace Devart.Data.MySql
                 }
             }
 
-            Command.CommandText = selectSQL;
+            Command.CommandText = selectSql;
             MySqlDataReader rdr = Command.ExecuteReader();
 
             while (rdr.Read())
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
                 _currentRowIndexInAllTable = _currentRowIndexInAllTable + 1;
@@ -684,15 +681,15 @@ namespace Devart.Data.MySql
                 sb.Append(";");
 
                 Export_WriteLine(sb.ToString());
-                textWriter.Flush();
+                _textWriter.Flush();
             }
 
             rdr.Close();
         }
 
-        void Export_RowsData_Update(string tableName, string selectSQL)
+        private void Export_RowsData_Update(string tableName, string selectSql)
         {
-            MySqlTable table = _database.Tables[tableName];
+            MySqlTable table = Database.Tables[tableName];
 
             bool allPrimaryField = true;
             foreach (var col in table.Columns)
@@ -720,12 +717,12 @@ namespace Devart.Data.MySql
             if (allNonPrimaryField)
                 return;
 
-            Command.CommandText = selectSQL;
+            Command.CommandText = selectSql;
             MySqlDataReader rdr = Command.ExecuteReader();
 
             while (rdr.Read())
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
                 _currentRowIndexInAllTable = _currentRowIndexInAllTable + 1;
@@ -746,7 +743,7 @@ namespace Devart.Data.MySql
 
                 Export_WriteLine(sb.ToString());
 
-                textWriter.Flush();
+                _textWriter.Flush();
             }
 
             rdr.Close();
@@ -768,9 +765,9 @@ namespace Devart.Data.MySql
 
             for (int i = 0; i < rdr.FieldCount; i++)
             {
-                string _colname = rdr.GetName(i);
+                string colname = rdr.GetName(i);
 
-                if (_database.Tables[tableName].Columns[_colname].IsGeneratedColumn)
+                if (Database.Tables[tableName].Columns[colname].IsGeneratedColumn)
                     continue;
 
                 if (i > 0)
@@ -864,131 +861,131 @@ namespace Devart.Data.MySql
             }
         }
 
-        void Export_Procedures()
+        private void Export_Procedures()
         {
-            if (!ExportInfo.ExportProcedures || _database.Procedures.Count == 0)
+            if (!ExportInfo.ExportProcedures || Database.Procedures.Count == 0)
                 return;
 
             Export_WriteComment(string.Empty);
             Export_WriteComment("Dumping procedures");
             Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
-            foreach (MySqlProcedure procedure in _database.Procedures)
+            foreach (MySqlProcedure procedure in Database.Procedures)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                if (procedure.CreateProcedureSQLWithoutDefiner.Trim().Length == 0 ||
-                    procedure.CreateProcedureSQL.Trim().Length == 0)
+                if (procedure.CreateProcedureSqlWithoutDefiner.Trim().Length == 0 ||
+                    procedure.CreateProcedureSql.Trim().Length == 0)
                     continue;
 
                 Export_WriteLine(string.Format("DROP PROCEDURE IF EXISTS `{0}`;", procedure.Name));
                 Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(procedure.CreateProcedureSQLWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    Export_WriteLine(procedure.CreateProcedureSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(procedure.CreateProcedureSQL + " " + ExportInfo.ScriptsDelimiter);
+                    Export_WriteLine(procedure.CreateProcedureSql + " " + ExportInfo.ScriptsDelimiter);
 
                 Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_Functions()
+        private void Export_Functions()
         {
-            if (!ExportInfo.ExportFunctions || _database.Functions.Count == 0)
+            if (!ExportInfo.ExportFunctions || Database.Functions.Count == 0)
                 return;
 
             Export_WriteComment(string.Empty);
             Export_WriteComment("Dumping functions");
             Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
-            foreach (MySqlFunction function in _database.Functions)
+            foreach (MySqlFunction function in Database.Functions)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                if (function.CreateFunctionSQL.Trim().Length == 0 ||
-                    function.CreateFunctionSQLWithoutDefiner.Trim().Length == 0)
+                if (function.CreateFunctionSql.Trim().Length == 0 ||
+                    function.CreateFunctionSqlWithoutDefiner.Trim().Length == 0)
                     continue;
 
                 Export_WriteLine(string.Format("DROP FUNCTION IF EXISTS `{0}`;", function.Name));
                 Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(function.CreateFunctionSQLWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    Export_WriteLine(function.CreateFunctionSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(function.CreateFunctionSQL + " " + ExportInfo.ScriptsDelimiter);
+                    Export_WriteLine(function.CreateFunctionSql + " " + ExportInfo.ScriptsDelimiter);
 
                 Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_Views()
+        private void Export_Views()
         {
-            if (!ExportInfo.ExportViews || _database.Views.Count == 0)
+            if (!ExportInfo.ExportViews || Database.Views.Count == 0)
                 return;
 
             // ReArrange Views
-            Dictionary<string, string> dicView_Create = new Dictionary<string, string>();
-            foreach (var view in _database.Views)
+            Dictionary<string, string> dicViewCreate = new Dictionary<string, string>();
+            foreach (var view in Database.Views)
             {
-                dicView_Create[view.Name] = view.CreateViewSQL;
+                dicViewCreate[view.Name] = view.CreateViewSql;
             }
 
-            var lst = Export_ReArrangeDependencies(dicView_Create, null, "`");
+            var lst = Export_ReArrangeDependencies(dicViewCreate, null, "`");
 
             Export_WriteComment(string.Empty);
             Export_WriteComment("Dumping views");
             Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             foreach (var viewname in lst)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                var view = _database.Views[viewname];
+                var view = Database.Views[viewname];
 
-                if (view.CreateViewSQL.Trim().Length == 0 ||
-                    view.CreateViewSQLWithoutDefiner.Trim().Length == 0)
+                if (view.CreateViewSql.Trim().Length == 0 ||
+                    view.CreateViewSqlWithoutDefiner.Trim().Length == 0)
                     continue;
 
                 Export_WriteLine(string.Format("DROP TABLE IF EXISTS `{0}`;", view.Name));
                 Export_WriteLine(string.Format("DROP VIEW IF EXISTS `{0}`;", view.Name));
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(view.CreateViewSQLWithoutDefiner);
+                    Export_WriteLine(view.CreateViewSqlWithoutDefiner);
                 else
-                    Export_WriteLine(view.CreateViewSQL);
+                    Export_WriteLine(view.CreateViewSql);
 
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
 
-            textWriter.WriteLine();
-            textWriter.Flush();
+            _textWriter.WriteLine();
+            _textWriter.Flush();
         }
 
-        void Export_Events()
+        private void Export_Events()
         {
-            if (!ExportInfo.ExportEvents || _database.Events.Count == 0)
+            if (!ExportInfo.ExportEvents || Database.Events.Count == 0)
                 return;
 
             Export_WriteComment(string.Empty);
             Export_WriteComment("Dumping events");
             Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
-            foreach (MySqlEvent e in _database.Events)
+            foreach (MySqlEvent e in Database.Events)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
                 if (e.CreateEventSql.Trim().Length == 0 ||
@@ -1004,52 +1001,52 @@ namespace Devart.Data.MySql
                     Export_WriteLine(e.CreateEventSql + " " + ExportInfo.ScriptsDelimiter);
 
                 Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_Triggers()
+        private void Export_Triggers()
         {
             if (!ExportInfo.ExportTriggers ||
-                _database.Triggers.Count == 0)
+                Database.Triggers.Count == 0)
                 return;
 
             Export_WriteComment(string.Empty);
             Export_WriteComment("Dumping triggers");
             Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
-            foreach (MySqlTrigger trigger in _database.Triggers)
+            foreach (MySqlTrigger trigger in Database.Triggers)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                var createTriggerSQL = trigger.CreateTriggerSQL.Trim();
-                var createTriggerSQLWithoutDefiner = trigger.CreateTriggerSQLWithoutDefiner.Trim();
-                if (createTriggerSQL.Length == 0 ||
-                    createTriggerSQLWithoutDefiner.Length == 0)
+                var createTriggerSql = trigger.CreateTriggerSql.Trim();
+                var createTriggerSqlWithoutDefiner = trigger.CreateTriggerSqlWithoutDefiner.Trim();
+                if (createTriggerSql.Length == 0 ||
+                    createTriggerSqlWithoutDefiner.Length == 0)
                     continue;
 
                 Export_WriteLine(string.Format("DROP TRIGGER /*!50030 IF EXISTS */ `{0}`;", trigger.Name));
                 Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(createTriggerSQLWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    Export_WriteLine(createTriggerSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(createTriggerSQL + " " + ExportInfo.ScriptsDelimiter);
+                    Export_WriteLine(createTriggerSql + " " + ExportInfo.ScriptsDelimiter);
 
                 Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_DocumentFooter()
+        private void Export_DocumentFooter()
         {
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             List<string> lstFooters = ExportInfo.GetDocumentFooters();
             if (lstFooters.Count > 0)
@@ -1060,30 +1057,30 @@ namespace Devart.Data.MySql
                 }
             }
 
-            timeEnd = DateTime.Now;
+            _timeEnd = DateTime.Now;
 
             if (ExportInfo.RecordDumpTime)
             {
-                TimeSpan ts = timeEnd - timeStart;
+                TimeSpan ts = _timeEnd - _timeStart;
 
-                textWriter.WriteLine();
-                textWriter.WriteLine();
-                Export_WriteComment(string.Format("Dump completed on {0}", timeEnd.ToString("yyyy-MM-dd HH:mm:ss")));
+                _textWriter.WriteLine();
+                _textWriter.WriteLine();
+                Export_WriteComment(string.Format("Dump completed on {0}", _timeEnd.ToString("yyyy-MM-dd HH:mm:ss")));
                 Export_WriteComment(string.Format("Total time: {0}:{1}:{2}:{3}:{4} (d:h:m:s:ms)", ts.Days, ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds));
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_WriteComment(string text)
+        private void Export_WriteComment(string text)
         {
             if (ExportInfo.EnableComment)
                 Export_WriteLine(string.Format("-- {0}", text));
         }
 
-        void Export_WriteLine(string text)
+        private void Export_WriteLine(string text)
         {
-            textWriter.WriteLine(text);
+            _textWriter.WriteLine(text);
         }
 
         #endregion
@@ -1125,7 +1122,7 @@ namespace Devart.Data.MySql
         {
             ms.Position = 0;
             _totalBytes = ms.Length;
-            textReader = new StreamReader(ms);
+            _textReader = new StreamReader(ms);
             Import_Start();
         }
 
@@ -1134,23 +1131,23 @@ namespace Devart.Data.MySql
             if (sm.CanSeek)
                 sm.Seek(0, SeekOrigin.Begin);
 
-            textReader = new StreamReader(sm);
+            _textReader = new StreamReader(sm);
             Import_Start();
         }
 
-        void ImportFromTextReaderStream(TextReader tr, FileInfo fileInfo)
+        private void ImportFromTextReaderStream(TextReader tr, FileInfo fileInfo)
         {
             if (fileInfo != null)
                 _totalBytes = fileInfo.Length;
             else
                 _totalBytes = 0L;
 
-            textReader = tr;
+            _textReader = tr;
 
             Import_Start();
         }
 
-        void Import_Start()
+        private void Import_Start()
         {
             Import_InitializeVariables();
 
@@ -1160,9 +1157,9 @@ namespace Devart.Data.MySql
 
                 while (line != null)
                 {
-                    if (stopProcess)
+                    if (_stopProcess)
                     {
-                        processCompletionType = ProcessEndType.Cancelled;
+                        _processCompletionType = ProcessEndType.Cancelled;
                         break;
                     }
 
@@ -1181,12 +1178,12 @@ namespace Devart.Data.MySql
                     catch (Exception ex)
                     {
                         line = string.Empty;
-                        _lastError = ex;
-                        _lastErrorSql = _sbImport.ToString();
+                        LastError = ex;
+                        LastErrorSql = _sbImport.ToString();
 
                         if (!string.IsNullOrEmpty(ImportInfo.ErrorLogFile))
                         {
-                            File.AppendAllText(ImportInfo.ErrorLogFile, ex.Message + Environment.NewLine + Environment.NewLine + _lastErrorSql + Environment.NewLine + Environment.NewLine);
+                            File.AppendAllText(ImportInfo.ErrorLogFile, ex.Message + Environment.NewLine + Environment.NewLine + LastErrorSql + Environment.NewLine + Environment.NewLine);
                         }
 
                         _sbImport = new StringBuilder();
@@ -1207,7 +1204,7 @@ namespace Devart.Data.MySql
             }
         }
 
-        void Import_InitializeVariables()
+        private void Import_InitializeVariables()
         {
             if (Command == null)
             {
@@ -1226,26 +1223,26 @@ namespace Devart.Data.MySql
 
             //_createViewDetected = false;
             //_dicImportRoutines = new Dictionary<string, bool>();
-            stopProcess = false;
+            _stopProcess = false;
             //GetSHA512HashFromPassword(ImportInfo.EncryptionPassword);
-            _lastError = null;
-            timeStart = DateTime.Now;
+            LastError = null;
+            _timeStart = DateTime.Now;
             _currentBytes = 0L;
             _sbImport = new StringBuilder();
             _mySqlScript = new MySqlScript(Command.Connection);
-            currentProcess = ProcessType.Import;
-            processCompletionType = ProcessEndType.Complete;
+            _currentProcess = ProcessType.Import;
+            _processCompletionType = ProcessEndType.Complete;
             _delimiter = ";";
-            _lastErrorSql = string.Empty;
+            LastErrorSql = string.Empty;
 
             if (ImportProgressChanged != null)
-                timerReport.Start();
+                _timerReport.Start();
 
         }
 
-        string Import_GetLine()
+        private string Import_GetLine()
         {
-            string line = textReader.ReadLine();
+            string line = _textReader.ReadLine();
 
             if (line == null)
                 return null;
@@ -1265,7 +1262,7 @@ namespace Devart.Data.MySql
             return line;
         }
 
-        void Import_ProcessLine(string line)
+        private void Import_ProcessLine(string line)
         {
             NextImportAction nextAction = Import_AnalyseNextAction(line);
 
@@ -1288,7 +1285,7 @@ namespace Devart.Data.MySql
             }
         }
 
-        NextImportAction Import_AnalyseNextAction(string line)
+        private NextImportAction Import_AnalyseNextAction(string line)
         {
             if (line == null)
                 return NextImportAction.Ignore;
@@ -1305,24 +1302,24 @@ namespace Devart.Data.MySql
             return NextImportAction.AppendLine;
         }
 
-        void Import_AppendLine(string line)
+        private void Import_AppendLine(string line)
         {
             _sbImport.AppendLine(line);
         }
 
-        void Import_ChangeDelimiter(string line)
+        private void Import_ChangeDelimiter(string line)
         {
             string nextDelimiter = line.Substring(9);
             _delimiter = nextDelimiter.Replace(" ", string.Empty);
         }
 
-        void Import_AppendLineAndExecute(string line)
+        private void Import_AppendLineAndExecute(string line)
         {
             _sbImport.Append(line);
 
-            string _query = _sbImport.ToString();
+            string query = _sbImport.ToString();
 
-            if (_query.StartsWith("DELIMITER ", StringComparison.OrdinalIgnoreCase))
+            if (query.StartsWith("DELIMITER ", StringComparison.OrdinalIgnoreCase))
             {
                 _mySqlScript.Query = _sbImport.ToString();
                 _mySqlScript.Delimiter = _delimiter;
@@ -1330,7 +1327,7 @@ namespace Devart.Data.MySql
             }
             else
             {
-                Command.CommandText = _query;
+                Command.CommandText = query;
                 Command.ExecuteNonQuery();
             }
 
@@ -1339,7 +1336,7 @@ namespace Devart.Data.MySql
             GC.Collect();
         }
 
-        bool Import_IsEmptyLine(string line)
+        private bool Import_IsEmptyLine(string line)
         {
             if (line == null)
                 return true;
@@ -1363,22 +1360,22 @@ namespace Devart.Data.MySql
 
         #endregion
 
-        void ReportEndProcess()
+        private void ReportEndProcess()
         {
-            timeEnd = DateTime.Now;
+            _timeEnd = DateTime.Now;
 
             StopAllProcess();
 
-            if (currentProcess == ProcessType.Export)
+            if (_currentProcess == ProcessType.Export)
             {
                 ReportProgress();
                 if (ExportCompleted != null)
                 {
-                    ExportCompleteArgs arg = new ExportCompleteArgs(timeStart, timeEnd, processCompletionType, _lastError);
+                    ExportCompleteArgs arg = new ExportCompleteArgs(_timeStart, _timeEnd, _processCompletionType, LastError);
                     ExportCompleted(this, arg);
                 }
             }
-            else if (currentProcess == ProcessType.Import)
+            else if (_currentProcess == ProcessType.Import)
             {
                 _currentBytes = _totalBytes;
 
@@ -1386,7 +1383,7 @@ namespace Devart.Data.MySql
                 if (ImportCompleted != null)
                 {
                     MySqlBackup.ProcessEndType completedType = ProcessEndType.UnknownStatus;
-                    switch (processCompletionType)
+                    switch (_processCompletionType)
                     {
                         case ProcessEndType.Complete:
                             completedType = MySqlBackup.ProcessEndType.Complete;
@@ -1399,20 +1396,20 @@ namespace Devart.Data.MySql
                             break;
                     }
 
-                    ImportCompleteArgs arg = new ImportCompleteArgs(completedType, timeStart, timeEnd, _lastError);
+                    ImportCompleteArgs arg = new ImportCompleteArgs(completedType, _timeStart, _timeEnd, LastError);
                     ImportCompleted(this, arg);
                 }
             }
         }
 
-        void timerReport_Elapsed(object sender, ElapsedEventArgs e)
+        private void timerReport_Elapsed(object sender, ElapsedEventArgs e)
         {
             ReportProgress();
         }
 
-        void ReportProgress()
+        private void ReportProgress()
         {
-            if (currentProcess == ProcessType.Export)
+            if (_currentProcess == ProcessType.Export)
             {
                 if (ExportProgressChanged != null)
                 {
@@ -1420,7 +1417,7 @@ namespace Devart.Data.MySql
                     ExportProgressChanged(this, arg);
                 }
             }
-            else if (currentProcess == ProcessType.Import)
+            else if (_currentProcess == ProcessType.Import)
             {
                 if (ImportProgressChanged != null)
                 {
@@ -1432,21 +1429,21 @@ namespace Devart.Data.MySql
 
         public void StopAllProcess()
         {
-            stopProcess = true;
-            timerReport.Stop();
+            _stopProcess = true;
+            _timerReport.Stop();
         }
 
         public void Dispose()
         {
             try
             {
-                _database.Dispose();
+                Database.Dispose();
             }
             catch { }
 
             try
             {
-                _server = null;
+                Server = null;
             }
             catch { }
 

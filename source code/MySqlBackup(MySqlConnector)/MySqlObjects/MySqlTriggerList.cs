@@ -7,23 +7,21 @@ namespace MySqlConnector
 {
     public class MySqlTriggerList : IDisposable, IEnumerable<MySqlTrigger>
     {
-        string _sqlShowTriggers = string.Empty;
-        Dictionary<string, MySqlTrigger> _lst = new Dictionary<string, MySqlTrigger>();
+        private Dictionary<string, MySqlTrigger> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowTriggers { get { return _sqlShowTriggers; } }
+        public string SqlShowTriggers { get; } = string.Empty;
 
         public MySqlTriggerList()
         { }
 
         public MySqlTriggerList(MySqlCommand cmd)
         {
-            _sqlShowTriggers = "SHOW TRIGGERS;";
+            SqlShowTriggers = "SHOW TRIGGERS;";
             try
             {
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowTriggers);
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowTriggers);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -34,11 +32,7 @@ namespace MySqlConnector
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
-            }
-            catch
-            {
-                throw;
+                    AllowAccess = false;
             }
         }
 
@@ -53,13 +47,7 @@ namespace MySqlConnector
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return _lst.Count;
-            }
-        }
+        public int Count => _lst.Count;
 
         public bool Contains(string triggerName)
         {
@@ -74,10 +62,9 @@ namespace MySqlConnector
 
         public void Dispose()
         {
-            foreach (var key in _lst.Keys)
-            {
+            foreach (string key in _lst.Keys)
                 _lst[key] = null;
-            }
+            
             _lst = null;
         }
     }

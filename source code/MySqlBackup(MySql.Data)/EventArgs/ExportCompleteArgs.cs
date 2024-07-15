@@ -6,40 +6,34 @@ namespace MySql.Data.MySqlClient
 {
     public class ExportCompleteArgs
     {
-        MySqlBackup.ProcessEndType _completionType;
-        DateTime _timeStart;
-        DateTime _timeEnd;
-        TimeSpan _timeUsed;
-        Exception _exception;
-
         /// <summary>
         /// The Starting time of export process.
         /// </summary>
-        public DateTime TimeStart { get { return _timeStart; } }
+        public DateTime TimeStart { get; }
 
         /// <summary>
         /// The Ending time of export process.
         /// </summary>
-        public DateTime TimeEnd { get { return _timeEnd; } }
+        public DateTime TimeEnd { get; }
 
         /// <summary>
         /// Total time used in current export process.
         /// </summary>
-        public TimeSpan TimeUsed { get { return _timeUsed; } }
+        public TimeSpan TimeUsed { get; }
 
-        public MySqlBackup.ProcessEndType CompletionType { get { return _completionType; } }
+        public MySqlBackup.ProcessEndType CompletionType { get; }
 
-        public Exception LastError { get { return _exception; } }
+        public Exception LastError { get; }
 
-        public bool HasError { get { if (_exception != null) return true; return false; } }
+        public bool HasError { get { if (LastError != null) return true; return false; } }
 
         public ExportCompleteArgs(DateTime timeStart, DateTime timeEnd, MySqlBackup.ProcessEndType endType, Exception exception)
         {
-            _completionType = endType;
-            _timeStart = timeStart;
-            _timeEnd = timeEnd;
-            _timeUsed = timeEnd - timeStart;
-            _exception = exception;
+            CompletionType = endType;
+            TimeStart = timeStart;
+            TimeEnd = timeEnd;
+            TimeUsed = timeEnd - timeStart;
+            LastError = exception;
         }
     }
 }

@@ -5,42 +5,34 @@ namespace Devart.Data.MySql
 {
     public class MySqlTable : IDisposable
     {
-        string _name = string.Empty;
-        MySqlColumnList _lst = null;
-        long _totalRows = 0;
-        string _createTableSql = string.Empty;
-        string _createTableSqlWithoutAutoIncrement = string.Empty;
-        string _insertStatementHeader = string.Empty;
-        string _insertStatementHeaderWithoutColumns = string.Empty;
-
-        public string Name { get { return _name; } }
-        public long TotalRows { get { return _totalRows; } }
-        public string CreateTableSql { get { return _createTableSql; } }
-        public string CreateTableSqlWithoutAutoIncrement { get { return _createTableSqlWithoutAutoIncrement; } }
-        public MySqlColumnList Columns { get { return _lst; } }
-        public string InsertStatementHeaderWithoutColumns { get { return _insertStatementHeaderWithoutColumns; } }
-        public string InsertStatementHeader { get { return _insertStatementHeader; } }
+        public string Name { get; } = string.Empty;
+        public long TotalRows { get; private set; } = 0;
+        public string CreateTableSql { get; } = string.Empty;
+        public string CreateTableSqlWithoutAutoIncrement { get; } = string.Empty;
+        public MySqlColumnList Columns { get; private set; } = null;
+        public string InsertStatementHeaderWithoutColumns { get; private set; } = string.Empty;
+        public string InsertStatementHeader { get; private set; } = string.Empty;
 
         public MySqlTable(MySqlCommand cmd, string name)
         {
-            _name = name;
+            Name = name;
             string sql = string.Format("SHOW CREATE TABLE `{0}`;", name);
-            _createTableSql = QueryExpress.ExecuteScalarStr(cmd, sql, 1).Replace(Environment.NewLine, "^~~~~~~^").Replace("\r", "^~~~~~~^").Replace("\n", "^~~~~~~^").Replace("^~~~~~~^", Environment.NewLine).Replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ") + ";";
-            _createTableSqlWithoutAutoIncrement = RemoveAutoIncrement(_createTableSql);
-            _lst = new MySqlColumnList(cmd, name);
+            CreateTableSql = QueryExpress.ExecuteScalarStr(cmd, sql, 1).Replace(Environment.NewLine, "^~~~~~~^").Replace("\r", "^~~~~~~^").Replace("\n", "^~~~~~~^").Replace("^~~~~~~^", Environment.NewLine).Replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ") + ";";
+            CreateTableSqlWithoutAutoIncrement = RemoveAutoIncrement(CreateTableSql);
+            Columns = new MySqlColumnList(cmd, name);
             GetInsertStatementHeaders();
         }
 
-        void GetInsertStatementHeaders()
+        private void GetInsertStatementHeaders()
         {
-            _insertStatementHeaderWithoutColumns = string.Format("INSERT INTO `{0}` VALUES", _name);
+            InsertStatementHeaderWithoutColumns = string.Format("INSERT INTO `{0}` VALUES", Name);
 
             StringBuilder sb = new StringBuilder();
             sb.Append("INSERT INTO `");
-            sb.Append(_name);
+            sb.Append(Name);
             sb.Append("` (");
             var i = 0;
-            foreach (var column in _lst)
+            foreach (var column in Columns)
             {
                 if (i > 0)
                     sb.Append(',');
@@ -52,21 +44,21 @@ namespace Devart.Data.MySql
             }
             sb.Append(") VALUES");
 
-            _insertStatementHeader = sb.ToString();
+            InsertStatementHeader = sb.ToString();
         }
 
         public void GetTotalRowsByCounting(MySqlCommand cmd)
         {
-            string sql = string.Format("SELECT COUNT(1) FROM `{0}`;", _name);
-            _totalRows = QueryExpress.ExecuteScalarLong(cmd, sql);
+            string sql = string.Format("SELECT COUNT(1) FROM `{0}`;", Name);
+            TotalRows = QueryExpress.ExecuteScalarLong(cmd, sql);
         }
 
-        public void SetTotalRows(long _trows)
+        public void SetTotalRows(long trows)
         {
-            _totalRows = _trows;
+            TotalRows = trows;
         }
 
-        string RemoveAutoIncrement(string sql)
+        private string RemoveAutoIncrement(string sql)
         {
             string a = "AUTO_INCREMENT=";
 
@@ -97,8 +89,8 @@ namespace Devart.Data.MySql
 
         public void Dispose()
         {
-            _lst.Dispose();
-            _lst = null;
+            Columns.Dispose();
+            Columns = null;
         }
     }
 }

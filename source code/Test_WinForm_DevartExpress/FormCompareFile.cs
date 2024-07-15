@@ -6,12 +6,12 @@ namespace MySqlBackupTestApp
 {
     public partial class FormCompareFile : Form
     {
-        bool file1Opened = false;
-        bool file2Opened = false;
-        string hash1 = string.Empty;
-        string hash2 = string.Empty;
-        string file1 = string.Empty;
-        string file2 = string.Empty;
+        private bool _file1Opened = false;
+        private bool _file2Opened = false;
+        private string _hash1 = string.Empty;
+        private string _hash2 = string.Empty;
+        private string _file1 = string.Empty;
+        private string _file2 = string.Empty;
 
         public FormCompareFile()
         {
@@ -20,21 +20,21 @@ namespace MySqlBackupTestApp
 
         private void button_OpenFile1_Click(object sender, EventArgs e)
         {
-            file1Opened = GetHash(ref file1, ref hash1);
-            lbFilePath1.Text = "File: " + file1;
-            lbSHA1.Text = "SHA256 Checksum: " + hash1;
+            _file1Opened = GetHash(ref _file1, ref _hash1);
+            lbFilePath1.Text = "File: " + _file1;
+            lbSHA1.Text = "SHA256 Checksum: " + _hash1;
             CompareFile();
         }
 
         private void button_OpenFile2_Click(object sender, EventArgs e)
         {
-            file2Opened = GetHash(ref file2, ref hash2);
-            lbFilePath2.Text = "File: " + file2;
-            lbSHA2.Text = "SHA256 Checksum: " + hash2;
+            _file2Opened = GetHash(ref _file2, ref _hash2);
+            lbFilePath2.Text = "File: " + _file2;
+            lbSHA2.Text = "SHA256 Checksum: " + _hash2;
             CompareFile();
         }
 
-        bool GetHash(ref string file, ref string hash)
+        private bool GetHash(ref string file, ref string hash)
         {
             try
             {
@@ -55,11 +55,11 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void CompareFile()
+        private void CompareFile()
         {
-            if (file1Opened && file2Opened)
+            if (_file1Opened && _file2Opened)
             {
-                if (hash1 == hash2)
+                if (_hash1 == _hash2)
                 {
                     lbResult.Text = "Match. 100% same content.";
                     lbResult.ForeColor = Color.DarkGreen;

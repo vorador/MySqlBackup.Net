@@ -12,7 +12,7 @@ namespace MySqlBackupTestApp
 {
     public partial class FormTestExportImportMemory : Form
     {
-        byte[] _ba = null;
+        private byte[] _ba = null;
 
         public FormTestExportImportMemory()
         {
@@ -67,7 +67,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void LoadIntoMemory(byte[] ba)
+        private void LoadIntoMemory(byte[] ba)
         {
             if (ba == null || ba.Length == 0)
             {
@@ -82,7 +82,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void ClearMemory()
+        private void ClearMemory()
         {
             _ba = null;
             lbStatus.Text = "No dump content is loaded in memory.";

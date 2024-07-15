@@ -37,10 +37,6 @@ namespace MySqlConnector
     /// </summary>
     public class MySqlScript
     {
-        private MySqlConnection connection;
-        private string query;
-        private string delimiter;
-
         public event MySqlStatementExecutedEventHandler StatementExecuted;
         public event MySqlScriptErrorEventHandler Error;
         public event EventHandler ScriptCompleted;
@@ -64,7 +60,7 @@ namespace MySqlConnector
         public MySqlScript(MySqlConnection connection)
           : this()
         {
-            this.connection = connection;
+            this.Connection = connection;
         }
 
         /// <summary>
@@ -75,7 +71,7 @@ namespace MySqlConnector
         public MySqlScript(string query)
           : this()
         {
-            this.query = query;
+            this.Query = query;
         }
 
         /// <summary>
@@ -87,8 +83,8 @@ namespace MySqlConnector
         public MySqlScript(MySqlConnection connection, string query)
           : this()
         {
-            this.connection = connection;
-            this.query = query;
+            this.Connection = connection;
+            this.Query = query;
         }
 
         #endregion
@@ -99,31 +95,19 @@ namespace MySqlConnector
         /// Gets or sets the connection.
         /// </summary>
         /// <value>The connection.</value>
-        public MySqlConnection Connection
-        {
-            get { return connection; }
-            set { connection = value; }
-        }
+        public MySqlConnection Connection { get; set; }
 
         /// <summary>
         /// Gets or sets the query.
         /// </summary>
         /// <value>The query.</value>
-        public string Query
-        {
-            get { return query; }
-            set { query = value; }
-        }
+        public string Query { get; set; }
 
         /// <summary>
         /// Gets or sets the delimiter.
         /// </summary>
         /// <value>The delimiter.</value>
-        public string Delimiter
-        {
-            get { return delimiter; }
-            set { delimiter = value; }
-        }
+        public string Delimiter { get; set; }
 
         public bool AnsiQuotes { get; set; } = true;
         public bool NoBackslashEscapes { get; set; } = true;
@@ -140,16 +124,16 @@ namespace MySqlConnector
         {
             bool openedConnection = false;
 
-            if (connection == null)
+            if (Connection == null)
                 throw new InvalidOperationException("Connection not set");
-            if (query == null || query.Length == 0)
+            if (Query == null || Query.Length == 0)
                 return 0;
 
             // next we open up the connetion if it is not already open
-            if (connection.State != ConnectionState.Open)
+            if (Connection.State != ConnectionState.Open)
             {
                 openedConnection = true;
-                connection.Open();
+                Connection.Open();
             }
 
             // since we don't allow setting of parameters on a script we can 
@@ -164,11 +148,11 @@ namespace MySqlConnector
                 List<ScriptStatement> statements = BreakIntoStatements();
 
                 int count = 0;
-                MySqlCommand cmd = new MySqlCommand(null, connection);
+                MySqlCommand cmd = new MySqlCommand(null, Connection);
                 foreach (ScriptStatement statement in statements)
                 {
-                    if (String.IsNullOrEmpty(statement.text)) continue;
-                    cmd.CommandText = statement.text;
+                    if (String.IsNullOrEmpty(statement.Text)) continue;
+                    cmd.CommandText = statement.Text;
                     try
                     {
                         cmd.ExecuteNonQuery();
@@ -190,7 +174,7 @@ namespace MySqlConnector
             {
                 if (openedConnection)
                 {
-                    connection.Close();
+                    Connection.Close();
                 }
             }
         }
@@ -227,7 +211,7 @@ namespace MySqlConnector
         {
             List<int> lineNumbers = new List<int>();
 
-            StringReader sr = new StringReader(query);
+            StringReader sr = new StringReader(Query);
             string line = sr.ReadLine();
             int pos = 0;
             while (line != null)
@@ -253,7 +237,7 @@ namespace MySqlConnector
             int startPos = 0;
             List<ScriptStatement> statements = new List<ScriptStatement>();
             List<int> lineNumbers = BreakScriptIntoLines();
-            MySqlTokenizer tokenizer = new MySqlTokenizer(query);
+            MySqlTokenizer tokenizer = new MySqlTokenizer(Query);
 
             tokenizer.AnsiQuotes = AnsiQuotes;
             tokenizer.BackslashEscapes = !NoBackslashEscapes;
@@ -267,7 +251,7 @@ namespace MySqlConnector
                     {
                         tokenizer.NextToken();
                         AdjustDelimiterEnd(tokenizer);
-                        currentDelimiter = query.Substring(tokenizer.StartIndex,
+                        currentDelimiter = Query.Substring(tokenizer.StartIndex,
                           tokenizer.StopIndex - tokenizer.StartIndex).Trim();
                         startPos = tokenizer.StopIndex;
                     }
@@ -277,9 +261,9 @@ namespace MySqlConnector
                         // delimiter
                         if (currentDelimiter.StartsWith(token, StringComparison.OrdinalIgnoreCase))
                         {
-                            if ((tokenizer.StartIndex + currentDelimiter.Length) <= query.Length)
+                            if ((tokenizer.StartIndex + currentDelimiter.Length) <= Query.Length)
                             {
-                                if (query.Substring(tokenizer.StartIndex, currentDelimiter.Length) == currentDelimiter)
+                                if (Query.Substring(tokenizer.StartIndex, currentDelimiter.Length) == currentDelimiter)
                                 {
                                     token = currentDelimiter;
                                     tokenizer.Position = tokenizer.StartIndex + currentDelimiter.Length;
@@ -292,13 +276,13 @@ namespace MySqlConnector
                         if (delimiterPos != -1)
                         {
                             int endPos = tokenizer.StopIndex - token.Length + delimiterPos;
-                            if (tokenizer.StopIndex == query.Length - 1)
+                            if (tokenizer.StopIndex == Query.Length - 1)
                                 endPos++;
-                            string currentQuery = query.Substring(startPos, endPos - startPos);
+                            string currentQuery = Query.Substring(startPos, endPos - startPos);
                             ScriptStatement statement = new ScriptStatement();
-                            statement.text = currentQuery.Trim();
-                            statement.line = FindLineNumber(startPos, lineNumbers);
-                            statement.position = startPos - lineNumbers[statement.line];
+                            statement.Text = currentQuery.Trim();
+                            statement.Line = FindLineNumber(startPos, lineNumbers);
+                            statement.Position = startPos - lineNumbers[statement.Line];
                             statements.Add(statement);
                             startPos = endPos + currentDelimiter.Length;
                         }
@@ -308,15 +292,15 @@ namespace MySqlConnector
             }
 
             // now clean up the last statement
-            if (startPos < query.Length - 1)
+            if (startPos < Query.Length - 1)
             {
-                string sqlLeftOver = query.Substring(startPos).Trim();
+                string sqlLeftOver = Query.Substring(startPos).Trim();
                 if (!String.IsNullOrEmpty(sqlLeftOver))
                 {
                     ScriptStatement statement = new ScriptStatement();
-                    statement.text = sqlLeftOver;
-                    statement.line = FindLineNumber(startPos, lineNumbers);
-                    statement.position = startPos - lineNumbers[statement.line];
+                    statement.Text = sqlLeftOver;
+                    statement.Line = FindLineNumber(startPos, lineNumbers);
+                    statement.Position = startPos - lineNumbers[statement.Line];
                     statements.Add(statement);
                 }
             }
@@ -325,14 +309,14 @@ namespace MySqlConnector
 
         private void AdjustDelimiterEnd(MySqlTokenizer tokenizer)
         {
-            if (tokenizer.StopIndex < query.Length)
+            if (tokenizer.StopIndex < Query.Length)
             {
                 int pos = tokenizer.StopIndex;
-                char c = query[pos];
+                char c = Query[pos];
 
-                while (!Char.IsWhiteSpace(c) && pos < (query.Length - 1))
+                while (!Char.IsWhiteSpace(c) && pos < (Query.Length - 1))
                 {
-                    c = query[++pos];
+                    c = Query[++pos];
                 }
                 tokenizer.StopIndex = pos;
                 tokenizer.Position = pos;
@@ -386,11 +370,11 @@ namespace MySqlConnector
     /// </summary>
     public class MySqlScriptEventArgs : EventArgs
     {
-        private ScriptStatement statement;
+        private ScriptStatement _statement;
 
         internal ScriptStatement Statement
         {
-            set { this.statement = value; }
+            set { this._statement = value; }
         }
 
         /// <summary>
@@ -399,7 +383,7 @@ namespace MySqlConnector
         /// <value>The statement text.</value>
         public string StatementText
         {
-            get { return statement.text; }
+            get { return _statement.Text; }
         }
 
         /// <summary>
@@ -408,7 +392,7 @@ namespace MySqlConnector
         /// <value>The line.</value>
         public int Line
         {
-            get { return statement.line; }
+            get { return _statement.Line; }
         }
 
         /// <summary>
@@ -417,7 +401,7 @@ namespace MySqlConnector
         /// <value>The position.</value>
         public int Position
         {
-            get { return statement.position; }
+            get { return _statement.Position; }
         }
     }
 
@@ -426,9 +410,6 @@ namespace MySqlConnector
     /// </summary>
     public class MySqlScriptErrorEventArgs : MySqlScriptEventArgs
     {
-        private Exception exception;
-        private bool ignore;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="MySqlScriptErrorEventArgs"/> class.
         /// </summary>
@@ -436,33 +417,26 @@ namespace MySqlConnector
         public MySqlScriptErrorEventArgs(Exception exception)
           : base()
         {
-            this.exception = exception;
+            this.Exception = exception;
         }
 
         /// <summary>
         /// Gets the exception.
         /// </summary>
         /// <value>The exception.</value>
-        public Exception Exception
-        {
-            get { return exception; }
-        }
+        public Exception Exception { get; }
 
         /// <summary>
         /// Gets or sets a value indicating whether this <see cref="MySqlScriptErrorEventArgs"/> is ignore.
         /// </summary>
         /// <value><c>true</c> if ignore; otherwise, <c>false</c>.</value>
-        public bool Ignore
-        {
-            get { return ignore; }
-            set { ignore = value; }
-        }
+        public bool Ignore { get; set; }
     }
 
-    struct ScriptStatement
+    internal struct ScriptStatement
     {
-        public string text;
-        public int line;
-        public int position;
+        public string Text;
+        public int Line;
+        public int Position;
     }
 }

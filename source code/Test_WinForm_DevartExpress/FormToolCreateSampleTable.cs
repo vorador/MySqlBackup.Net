@@ -8,21 +8,21 @@ namespace MySqlBackupTestApp
 {
     public partial class FormToolCreateSampleTable : Form
     {
-        string tableName = string.Empty;
-        long totalRows = 0L;
-        long currentRow = 0L;
-        bool stop = false;
-        BackgroundWorker bw = new BackgroundWorker();
-        Timer timer1;
+        private string _tableName = string.Empty;
+        private long _totalRows = 0L;
+        private long _currentRow = 0L;
+        private bool _stop = false;
+        private readonly BackgroundWorker _bw = new BackgroundWorker();
+        private readonly Timer _timer1;
 
         public FormToolCreateSampleTable()
         {
             InitializeComponent();
-            bw.DoWork += bw_DoWork;
-            bw.RunWorkerCompleted += bw_RunWorkerCompleted;
-            timer1 = new Timer();
-            timer1.Interval = 50;
-            timer1.Tick += timer1_Tick;
+            _bw.DoWork += bw_DoWork;
+            _bw.RunWorkerCompleted += bw_RunWorkerCompleted;
+            _timer1 = new Timer();
+            _timer1.Interval = 50;
+            _timer1.Tick += timer1_Tick;
         }
 
         private void btReset_Click(object sender, EventArgs e)
@@ -73,24 +73,24 @@ ENGINE = InnoDB;";
 
         private void btStopInsert_Click(object sender, EventArgs e)
         {
-            stop = true;
+            _stop = true;
         }
 
         private void btInsert_Click(object sender, EventArgs e)
         {
-            stop = false;
-            totalRows = (long)numericUpDown1.Value;
-            tableName = txtTableName.Text;
-            timer1.Start();
+            _stop = false;
+            _totalRows = (long)numericUpDown1.Value;
+            _tableName = txtTableName.Text;
+            _timer1.Start();
             progressBar1.Maximum = (int)numericUpDown1.Value;
-            bw.RunWorkerAsync();
+            _bw.RunWorkerAsync();
         }
 
-        void bw_DoWork(object sender, DoWorkEventArgs e)
+        private void bw_DoWork(object sender, DoWorkEventArgs e)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("INSERT INTO `");
-            sb.AppendFormat(tableName);
+            sb.AppendFormat(_tableName);
             sb.AppendFormat("` (`varchar`,`text`,`datetime`,`date`,`time`,`decimal`,`tinyint`,`timestamp`,`char36`,`binary16`,`float`,`double`,`blob`,`bool`) VALUES");
 
             StringBuilder sb2 = new StringBuilder();
@@ -127,12 +127,12 @@ ENGINE = InnoDB;";
 
                     StringBuilder sb3 = new StringBuilder();
 
-                    for (long i = 0; i < totalRows; i++)
+                    for (long i = 0; i < _totalRows; i++)
                     {
-                        if (stop)
+                        if (_stop)
                             break;
 
-                        currentRow = i + 1;
+                        _currentRow = i + 1;
 
                         if (sb3.Length == 0)
                         {
@@ -172,19 +172,19 @@ ENGINE = InnoDB;";
             System.Threading.Thread.Sleep(700);
         }
 
-        void bw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void bw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            timer1.Stop();
+            _timer1.Stop();
             MessageBox.Show("Finished.");
         }
 
-        void timer1_Tick(object sender, EventArgs e)
+        private void timer1_Tick(object sender, EventArgs e)
         {
-            progressBar1.Value = (int)currentRow;
-            lbTotal.Text = currentRow + " / " + totalRows;
+            progressBar1.Value = (int)_currentRow;
+            lbTotal.Text = _currentRow + " / " + _totalRows;
         }
 
-        void Execute(string sql)
+        private void Execute(string sql)
         {
             try
             {

@@ -7,13 +7,11 @@ namespace MySqlConnector
 {
     public class MySqlViewList : IDisposable, IEnumerable<MySqlView>
     {
-        string _sqlShowViewList = string.Empty;
-        Dictionary<string, MySqlView> _lst = new Dictionary<string, MySqlView>();
+        private Dictionary<string, MySqlView> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowViewList { get { return _sqlShowViewList; } }
+        public string SqlShowViewList { get; } = string.Empty;
 
         public MySqlViewList()
         { }
@@ -23,8 +21,8 @@ namespace MySqlConnector
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowViewList = string.Format("SHOW FULL TABLES FROM `{0}` WHERE Table_type = 'VIEW';", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowViewList);
+                SqlShowViewList = $"SHOW FULL TABLES FROM `{dbname}` WHERE Table_type = 'VIEW';";
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowViewList);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,11 +33,7 @@ namespace MySqlConnector
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
-            }
-            catch
-            {
-                throw;
+                    AllowAccess = false;
             }
         }
 
@@ -47,20 +41,14 @@ namespace MySqlConnector
         {
             get
             {
-                if (_lst.ContainsKey(viewName))
-                    return _lst[viewName];
+                if (_lst.TryGetValue(viewName, out MySqlView view))
+                    return view;
 
                 throw new Exception("View \"" + viewName + "\" is not existed.");
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return _lst.Count;
-            }
-        }
+        public int Count => _lst.Count;
 
         public bool Contains(string viewName)
         {
@@ -75,10 +63,9 @@ namespace MySqlConnector
 
         public void Dispose()
         {
-            foreach (var key in _lst.Keys)
-            {
+            foreach (string key in _lst.Keys)
                 _lst[key] = null;
-            }
+            
             _lst = null;
         }
     }

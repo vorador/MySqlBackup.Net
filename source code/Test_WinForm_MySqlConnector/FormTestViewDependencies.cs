@@ -34,7 +34,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void Step1()
+        private void Step1()
         {
             MessageBox.Show("Running Step 1...");
 
@@ -62,7 +62,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void Step2()
+        private void Step2()
         {
             MessageBox.Show("Running Step 2...");
 
@@ -92,7 +92,7 @@ namespace MySqlBackupTestApp
             txtSHA1.Text = shastr;
         }
 
-        void Step3()
+        private void Step3()
         {
             MessageBox.Show("Running Step 3...");
 
@@ -120,7 +120,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void Step4()
+        private void Step4()
         {
             MessageBox.Show("Running Step 4...");
 

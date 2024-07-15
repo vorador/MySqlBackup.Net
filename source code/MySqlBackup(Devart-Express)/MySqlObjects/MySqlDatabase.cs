@@ -7,38 +7,26 @@ namespace Devart.Data.MySql
 {
     public class MySqlDatabase : IDisposable
     {
-        string _name = string.Empty;
-        string _createDatabaseSql = string.Empty;
-        string _dropDatabaseSql = string.Empty;
-        string _defaultCharSet = string.Empty;
+        public string Name { get; private set; } = string.Empty;
+        public string DefaultCharacterSet { get; private set; } = string.Empty;
+        public string CreateDatabaseSql { get; private set; } = string.Empty;
+        public string DropDatabaseSql { get; private set; } = string.Empty;
 
-        MySqlTableList _listTable = new MySqlTableList();
-        MySqlProcedureList _listProcedure = new MySqlProcedureList();
-        MySqlFunctionList _listFunction = new MySqlFunctionList();
-        MySqlEventList _listEvent = new MySqlEventList();
-        MySqlViewList _listView = new MySqlViewList();
-        MySqlTriggerList _listTrigger = new MySqlTriggerList();
+        public MySqlTableList Tables { get; private set; } = new MySqlTableList();
+        public MySqlProcedureList Procedures { get; private set; } = new MySqlProcedureList();
+        public MySqlEventList Events { get; private set; } = new MySqlEventList();
+        public MySqlViewList Views { get; private set; } = new MySqlViewList();
+        public MySqlFunctionList Functions { get; private set; } = new MySqlFunctionList();
+        public MySqlTriggerList Triggers { get; private set; } = new MySqlTriggerList();
 
-        public string Name { get { return _name; } }
-        public string DefaultCharacterSet { get { return _defaultCharSet; } }
-        public string CreateDatabaseSQL { get { return _createDatabaseSql; } }
-        public string DropDatabaseSQL { get { return _dropDatabaseSql; } }
-
-        public MySqlTableList Tables { get { return _listTable; } }
-        public MySqlProcedureList Procedures { get { return _listProcedure; } }
-        public MySqlEventList Events { get { return _listEvent; } }
-        public MySqlViewList Views { get { return _listView; } }
-        public MySqlFunctionList Functions { get { return _listFunction; } }
-        public MySqlTriggerList Triggers { get { return _listTrigger; } }
-
-        public delegate void getTotalRowsProgressChange(object sender, GetTotalRowsArgs e);
-        public event getTotalRowsProgressChange GetTotalRowsProgressChanged;
+        public delegate void GetTotalRowsProgressChange(object sender, GetTotalRowsArgs e);
+        public event GetTotalRowsProgressChange GetTotalRowsProgressChanged;
 
         public long TotalRows
         {
             get
             {
-                return _listTable.ToList().Sum(x => x.TotalRows);
+                return Tables.ToList().Sum(x => x.TotalRows);
             }
         }
 
@@ -47,17 +35,17 @@ namespace Devart.Data.MySql
 
         public void GetDatabaseInfo(MySqlCommand cmd, GetTotalRowsMethod enumGetTotalRowsMode)
         {
-            _name = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-            _defaultCharSet = QueryExpress.ExecuteScalarStr(cmd, "SHOW VARIABLES LIKE 'character_set_database';", 1);
-            _createDatabaseSql = QueryExpress.ExecuteScalarStr(cmd, string.Format("SHOW CREATE DATABASE `{0}`;", _name), 1).Replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS") + ";";
-            _dropDatabaseSql = string.Format("DROP DATABASE IF EXISTS `{0}`;", _name);
+            Name = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
+            DefaultCharacterSet = QueryExpress.ExecuteScalarStr(cmd, "SHOW VARIABLES LIKE 'character_set_database';", 1);
+            CreateDatabaseSql = QueryExpress.ExecuteScalarStr(cmd, string.Format("SHOW CREATE DATABASE `{0}`;", Name), 1).Replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS") + ";";
+            DropDatabaseSql = string.Format("DROP DATABASE IF EXISTS `{0}`;", Name);
 
-            _listTable = new MySqlTableList(cmd);
-            _listProcedure = new MySqlProcedureList(cmd);
-            _listFunction = new MySqlFunctionList(cmd);
-            _listTrigger = new MySqlTriggerList(cmd);
-            _listEvent = new MySqlEventList(cmd);
-            _listView = new MySqlViewList(cmd);
+            Tables = new MySqlTableList(cmd);
+            Procedures = new MySqlProcedureList(cmd);
+            Functions = new MySqlFunctionList(cmd);
+            Triggers = new MySqlTriggerList(cmd);
+            Events = new MySqlEventList(cmd);
+            Views = new MySqlViewList(cmd);
 
             if (enumGetTotalRowsMode != GetTotalRowsMethod.Skip)
                 GetTotalRows(cmd, enumGetTotalRowsMode);
@@ -72,46 +60,46 @@ namespace Devart.Data.MySql
             };
             timer.Elapsed += (sender, e) =>
             {
-                GetTotalRowsProgressChanged?.Invoke(this, new GetTotalRowsArgs(_listTable.Count, i));
+                GetTotalRowsProgressChanged?.Invoke(this, new GetTotalRowsArgs(Tables.Count, i));
             };
 
             if (enumGetTotalRowsMode == GetTotalRowsMethod.InformationSchema)
             {
-                DataTable dtTotalRows = QueryExpress.GetTable(cmd, string.Format("SELECT TABLE_NAME, TABLE_ROWS FROM `information_schema`.`tables` WHERE `table_schema` = '{0}';", _name));
+                DataTable dtTotalRows = QueryExpress.GetTable(cmd, string.Format("SELECT TABLE_NAME, TABLE_ROWS FROM `information_schema`.`tables` WHERE `table_schema` = '{0}';", Name));
                 timer.Start();
                 foreach (DataRow dr in dtTotalRows.Rows)
                 {
                     i++;
-                    var _tbname = dr["TABLE_NAME"] + "";
-                    long.TryParse(dr["TABLE_ROWS"] + "", out var _totalRowsThisTable);
+                    var tbname = dr["TABLE_NAME"] + "";
+                    long.TryParse(dr["TABLE_ROWS"] + "", out var totalRowsThisTable);
 
-                    if (_listTable.Contains(_tbname))
-                        _listTable[_tbname].SetTotalRows((long)(_totalRowsThisTable * 1.1)); // Adiciona 10% de erro
+                    if (Tables.Contains(tbname))
+                        Tables[tbname].SetTotalRows((long)(totalRowsThisTable * 1.1)); // Adiciona 10% de erro
                 }
                 timer.Stop();
-                GetTotalRowsProgressChanged?.Invoke(this, new GetTotalRowsArgs(_listTable.Count, _listTable.Count));
+                GetTotalRowsProgressChanged?.Invoke(this, new GetTotalRowsArgs(Tables.Count, Tables.Count));
             }
             else if (enumGetTotalRowsMode == GetTotalRowsMethod.SelectCount)
             {
                 timer.Start();
-                foreach (var table in _listTable)
+                foreach (var table in Tables)
                 {
                     i++;
                     table.GetTotalRowsByCounting(cmd);
                 }
                 timer.Stop();
-                GetTotalRowsProgressChanged?.Invoke(this, new GetTotalRowsArgs(_listTable.Count, _listTable.Count));
+                GetTotalRowsProgressChanged?.Invoke(this, new GetTotalRowsArgs(Tables.Count, Tables.Count));
             }
         }
 
         public void Dispose()
         {
-            _listTable.Dispose();
-            _listProcedure.Dispose();
-            _listFunction.Dispose();
-            _listEvent.Dispose();
-            _listTrigger.Dispose();
-            _listView.Dispose();
+            Tables.Dispose();
+            Procedures.Dispose();
+            Functions.Dispose();
+            Events.Dispose();
+            Triggers.Dispose();
+            Views.Dispose();
         }
     }
 }

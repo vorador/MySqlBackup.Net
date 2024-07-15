@@ -11,23 +11,23 @@ namespace MySqlBackupTestApp
 {
     public partial class FormQueryBrowser : Form
     {
-        DataTable dt = new DataTable();
+        private DataTable _dt = new DataTable();
 
         public FormQueryBrowser()
         {
             InitializeComponent();
             textBox1.Text = "SHOW TABLE STATUS;";
-            ExecuteSQL(1);
+            ExecuteSql(1);
         }
 
         private void btScript_Click(object sender, EventArgs e)
         {
-            ExecuteSQL(2);
+            ExecuteSql(2);
         }
 
         private void btSQL_Click(object sender, EventArgs e)
         {
-            ExecuteSQL(1);
+            ExecuteSql(1);
         }
 
         private void textBox1_KeyDown(object sender, KeyEventArgs e)
@@ -39,7 +39,7 @@ namespace MySqlBackupTestApp
             }
             else if (e.Control && e.KeyCode == Keys.Enter)
             {
-                ExecuteSQL(1);
+                ExecuteSql(1);
                 e.SuppressKeyPress = true;
             }
             else if (e.KeyCode == Keys.Escape)
@@ -49,7 +49,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void ExecuteSQL(int q)
+        private void ExecuteSql(int q)
         {
             try
             {
@@ -62,9 +62,9 @@ namespace MySqlBackupTestApp
                         MySqlScript script = new MySqlScript(conn);
                         script.Query = sql;
                         int i = script.Execute();
-                        dt = new DataTable();
-                        dt.Columns.Add("Result");
-                        dt.Rows.Add(i + " statement(s) executed.");
+                        _dt = new DataTable();
+                        _dt.Columns.Add("Result");
+                        _dt.Rows.Add(i + " statement(s) executed.");
                         BindData();
                     }
                     else
@@ -90,7 +90,7 @@ namespace MySqlBackupTestApp
                             {
                                 cmd.Connection = conn;
                                 conn.Open();
-                                dt = QueryExpress.GetTable(cmd, sql);
+                                _dt = QueryExpress.GetTable(cmd, sql);
                                 BindData();
                             }
                         }
@@ -102,9 +102,9 @@ namespace MySqlBackupTestApp
                                 conn.Open();
                                 cmd.CommandText = sql;
                                 int i = cmd.ExecuteNonQuery();
-                                dt = new DataTable();
-                                dt.Columns.Add("Results");
-                                dt.Rows.Add(i + " row(s) affected by the last command.");
+                                _dt = new DataTable();
+                                _dt.Columns.Add("Results");
+                                _dt.Rows.Add(i + " row(s) affected by the last command.");
                                 BindData();
                             }
                         }
@@ -117,22 +117,22 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void WriteError(Exception ex)
+        private void WriteError(Exception ex)
         {
-            dt = new DataTable();
-            dt.Columns.Add("Error");
-            dt.Rows.Add(ex.Message);
+            _dt = new DataTable();
+            _dt.Columns.Add("Error");
+            _dt.Rows.Add(ex.Message);
             BindData();
         }
 
-        void BindData()
+        private void BindData()
         {
             StringBuilder sb = new StringBuilder();
 
             sb.AppendLine("<html><head><style>body { font-family: \"Segoe UI\", Arial; line-height: 150%; } table { border: 1px solid #5C5C5C; border-collapse: collapse; } td { font-size: 10pt; padding: 4px; border: 1px solid #5C5C5C; } </style></head>");
             sb.AppendLine("<body>");
 
-            sb.AppendFormat(HtmlExpress.ConvertDataTableToHtmlTable(dt));
+            sb.AppendFormat(HtmlExpress.ConvertDataTableToHtmlTable(_dt));
 
             sb.AppendLine("</body>");
             sb.AppendFormat("</html>");

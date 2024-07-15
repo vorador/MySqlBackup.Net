@@ -8,7 +8,7 @@ namespace MySqlBackupTestApp
 {
     public partial class FormTestImportCaptureError : Form
     {
-        string cacheLogFilePath
+        private string CacheLogFilePath
         {
             get
             {
@@ -22,7 +22,7 @@ namespace MySqlBackupTestApp
 
             try
             {
-                string oldlocation = File.ReadAllText(cacheLogFilePath);
+                string oldlocation = File.ReadAllText(CacheLogFilePath);
                 txtLogFilePath.Text = oldlocation;
             }
             catch
@@ -31,7 +31,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void RunTest(string sql)
+        private void RunTest(string sql)
         {
             txtError.Text = string.Empty;
             txtLastErrorSqlSyntax.Text = string.Empty;
@@ -39,14 +39,14 @@ namespace MySqlBackupTestApp
 
             try
             {
-                string oldlocation = File.ReadAllText(cacheLogFilePath);
+                string oldlocation = File.ReadAllText(CacheLogFilePath);
 
                 if (oldlocation != txtLogFilePath.Text)
-                    File.WriteAllText(cacheLogFilePath, txtLogFilePath.Text);
+                    File.WriteAllText(CacheLogFilePath, txtLogFilePath.Text);
             }
             catch
             {
-                File.WriteAllText(cacheLogFilePath, txtLogFilePath.Text);
+                File.WriteAllText(CacheLogFilePath, txtLogFilePath.Text);
             }
 
             try
@@ -85,7 +85,7 @@ namespace MySqlBackupTestApp
                         }
                         catch { }
 
-                        txtLastErrorSqlSyntax.Text = mb.LastErrorSQL;
+                        txtLastErrorSqlSyntax.Text = mb.LastErrorSql;
                     }
                 }
             }
@@ -93,7 +93,7 @@ namespace MySqlBackupTestApp
             MessageBox.Show("Task ended.");
         }
 
-        string GetDumpContent()
+        private string GetDumpContent()
         {
             StringBuilder sb = new StringBuilder();
 

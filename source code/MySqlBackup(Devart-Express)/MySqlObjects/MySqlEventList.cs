@@ -7,13 +7,11 @@ namespace Devart.Data.MySql
 {
     public class MySqlEventList : IDisposable, IEnumerable<MySqlEvent>
     {
-        string _sqlShowEvents = string.Empty;
-        Dictionary<string, MySqlEvent> _lst = new Dictionary<string, MySqlEvent>();
+        private Dictionary<string, MySqlEvent> _lst = new Dictionary<string, MySqlEvent>();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowEvent { get { return _sqlShowEvents; } }
+        public string SqlShowEvent { get; } = string.Empty;
 
         public MySqlEventList()
         { }
@@ -23,8 +21,8 @@ namespace Devart.Data.MySql
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowEvents = string.Format("SHOW EVENTS WHERE UPPER(TRIM(Db))=UPPER(TRIM('{0}'));", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowEvents);
+                SqlShowEvent = string.Format("SHOW EVENTS WHERE UPPER(TRIM(Db))=UPPER(TRIM('{0}'));", dbname);
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowEvent);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,7 +33,7 @@ namespace Devart.Data.MySql
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
+                    AllowAccess = false;
             }
             catch
             {

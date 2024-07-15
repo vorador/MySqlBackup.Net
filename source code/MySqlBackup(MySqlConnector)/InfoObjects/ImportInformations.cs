@@ -2,7 +2,7 @@
 {
     public class ImportInformations
     {
-        int _interval = 100;
+        private int _interval = 100;
         //string _targetDatabase = string.Empty;
         //string _databaseDefaultCharSet = string.Empty;
 

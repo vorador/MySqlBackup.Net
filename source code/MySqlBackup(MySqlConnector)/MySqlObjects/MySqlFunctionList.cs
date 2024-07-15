@@ -7,13 +7,11 @@ namespace MySqlConnector
 {
     public class MySqlFunctionList : IDisposable, IEnumerable<MySqlFunction>
     {
-        string _sqlShowFunctions = string.Empty;
-        Dictionary<string, MySqlFunction> _lst = new Dictionary<string, MySqlFunction>();
+        private Dictionary<string, MySqlFunction> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowFunctions { get { return _sqlShowFunctions; } }
+        public string SqlShowFunctions { get; } = string.Empty;
 
         public MySqlFunctionList()
         { }
@@ -23,8 +21,8 @@ namespace MySqlConnector
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowFunctions = string.Format("SHOW FUNCTION STATUS WHERE UPPER(TRIM(Db))= UPPER(TRIM('{0}'));", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowFunctions);
+                SqlShowFunctions = $"SHOW FUNCTION STATUS WHERE UPPER(TRIM(Db))= UPPER(TRIM('{dbname}'));";
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowFunctions);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,11 +33,7 @@ namespace MySqlConnector
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
-            }
-            catch
-            {
-                throw;
+                    AllowAccess = false;
             }
         }
 
@@ -47,20 +41,14 @@ namespace MySqlConnector
         {
             get
             {
-                if (_lst.ContainsKey(functionName))
-                    return _lst[functionName];
+                if (_lst.TryGetValue(functionName, out MySqlFunction function))
+                    return function;
 
                 throw new Exception("Function \"" + functionName + "\" is not existed.");
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return _lst.Count;
-            }
-        }
+        public int Count => _lst.Count;
 
         public bool Contains(string functionName)
         {
@@ -75,10 +63,9 @@ namespace MySqlConnector
 
         public void Dispose()
         {
-            foreach (var key in _lst.Keys)
-            {
+            foreach (string key in _lst.Keys)
                 _lst[key] = null;
-            }
+            
             _lst = null;
         }
     }

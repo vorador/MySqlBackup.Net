@@ -6,31 +6,27 @@ namespace Devart.Data.MySql
 {
     public class MySqlProcedure
     {
-        string _name;
-        string _createProcedureSQL;
-        string _createProcedureSQLWithoutDefiner;
-
-        public string Name { get { return _name; } }
-        public string CreateProcedureSQL { get { return _createProcedureSQL; } }
-        public string CreateProcedureSQLWithoutDefiner { get { return _createProcedureSQLWithoutDefiner; } }
+        public string Name { get; }
+        public string CreateProcedureSql { get; }
+        public string CreateProcedureSqlWithoutDefiner { get; }
 
         public MySqlProcedure(MySqlCommand cmd, string procedureName, string definer)
         {
-            _name = procedureName;
+            Name = procedureName;
 
             string sql = string.Format("SHOW CREATE PROCEDURE `{0}`;", procedureName);
 
-            _createProcedureSQL = QueryExpress.ExecuteScalarStr(cmd, sql, 2);
+            CreateProcedureSql = QueryExpress.ExecuteScalarStr(cmd, sql, 2);
 
-            _createProcedureSQL = _createProcedureSQL.Replace("\r\n", "^~~~~~~~~~~~~~~^");
-            _createProcedureSQL = _createProcedureSQL.Replace("\n", "^~~~~~~~~~~~~~~^");
-            _createProcedureSQL = _createProcedureSQL.Replace("\r", "^~~~~~~~~~~~~~~^");
-            _createProcedureSQL = _createProcedureSQL.Replace("^~~~~~~~~~~~~~~^", "\r\n");
+            CreateProcedureSql = CreateProcedureSql.Replace("\r\n", "^~~~~~~~~~~~~~~^");
+            CreateProcedureSql = CreateProcedureSql.Replace("\n", "^~~~~~~~~~~~~~~^");
+            CreateProcedureSql = CreateProcedureSql.Replace("\r", "^~~~~~~~~~~~~~~^");
+            CreateProcedureSql = CreateProcedureSql.Replace("^~~~~~~~~~~~~~~^", "\r\n");
 
             string[] sa = definer.Split('@');
             definer = string.Format(" DEFINER=`{0}`@`{1}`", sa[0], sa[1]);
 
-            _createProcedureSQLWithoutDefiner = _createProcedureSQL.Replace(definer, string.Empty);
+            CreateProcedureSqlWithoutDefiner = CreateProcedureSql.Replace(definer, string.Empty);
         }
     }
 }

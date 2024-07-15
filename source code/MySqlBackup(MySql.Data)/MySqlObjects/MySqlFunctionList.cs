@@ -7,13 +7,11 @@ namespace MySql.Data.MySqlClient
 {
     public class MySqlFunctionList : IDisposable, IEnumerable<MySqlFunction>
     {
-        string _sqlShowFunctions = string.Empty;
-        Dictionary<string, MySqlFunction> _lst = new Dictionary<string, MySqlFunction>();
+        private Dictionary<string, MySqlFunction> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowFunctions { get { return _sqlShowFunctions; } }
+        public string SqlShowFunctions { get; } = string.Empty;
 
         public MySqlFunctionList()
         { }
@@ -23,8 +21,8 @@ namespace MySql.Data.MySqlClient
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowFunctions = string.Format("SHOW FUNCTION STATUS WHERE UPPER(TRIM(Db))= UPPER(TRIM('{0}'));", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowFunctions);
+                SqlShowFunctions = string.Format("SHOW FUNCTION STATUS WHERE UPPER(TRIM(Db))= UPPER(TRIM('{0}'));", dbname);
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowFunctions);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,7 +33,7 @@ namespace MySql.Data.MySqlClient
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
+                    AllowAccess = false;
             }
             catch
             {

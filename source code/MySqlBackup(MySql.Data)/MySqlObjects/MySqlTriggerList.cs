@@ -7,23 +7,21 @@ namespace MySql.Data.MySqlClient
 {
     public class MySqlTriggerList : IDisposable, IEnumerable<MySqlTrigger>
     {
-        string _sqlShowTriggers = string.Empty;
-        Dictionary<string, MySqlTrigger> _lst = new Dictionary<string, MySqlTrigger>();
+        private Dictionary<string, MySqlTrigger> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowTriggers { get { return _sqlShowTriggers; } }
+        public string SqlShowTriggers { get; } = string.Empty;
 
         public MySqlTriggerList()
         { }
 
         public MySqlTriggerList(MySqlCommand cmd)
         {
-            _sqlShowTriggers = "SHOW TRIGGERS;";
+            SqlShowTriggers = "SHOW TRIGGERS;";
             try
             {
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowTriggers);
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowTriggers);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -34,7 +32,7 @@ namespace MySql.Data.MySqlClient
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
+                    AllowAccess = false;
             }
             catch
             {

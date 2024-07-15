@@ -6,26 +6,20 @@ namespace MySql.Data.MySqlClient
 {
     public class ImportCompleteArgs
     {
-        MySqlBackup.ProcessEndType _completionType;
-        DateTime _timeStart;
-        DateTime _timeEnd;
-        TimeSpan _timeUsed;
-        Exception _exception;
-
         /// <summary>
         /// The starting time of import process.
         /// </summary>
-        public DateTime TimeStart { get { return _timeStart; } }
+        public DateTime TimeStart { get; }
 
         /// <summary>
         /// The ending time of import process.
         /// </summary>
-        public DateTime TimeEnd { get { return _timeEnd; } }
+        public DateTime TimeEnd { get; }
 
         /// <summary>
         /// The completion type of current import processs.
         /// </summary>
-        public MySqlBackup.ProcessEndType CompleteType { get { return _completionType; } }
+        public MySqlBackup.ProcessEndType CompleteType { get; }
 
         /// <summary>
         /// Indicates whether the import process has error(s).
@@ -35,20 +29,20 @@ namespace MySql.Data.MySqlClient
         /// <summary>
         /// The last error (exception) occur in import process.
         /// </summary>
-        public Exception LastError { get { return _exception; } }
+        public Exception LastError { get; }
 
         /// <summary>
         /// Total time used in current import process.
         /// </summary>
-        public TimeSpan TimeUsed { get { return _timeUsed; } }
+        public TimeSpan TimeUsed { get; }
 
         public ImportCompleteArgs(MySqlBackup.ProcessEndType completionType, DateTime timeStart, DateTime timeEnd, Exception exception)
         {
-            _completionType = completionType;
-            _timeStart = timeStart;
-            _timeEnd = timeEnd;
-            _timeUsed = timeEnd - timeStart;
-            _exception = exception;
+            CompleteType = completionType;
+            TimeStart = timeStart;
+            TimeEnd = timeEnd;
+            TimeUsed = timeEnd - timeStart;
+            LastError = exception;
         }
     }
 }

@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace MySqlBackupTestApp
 {
-    static class Program
+    internal static class Program
     {
         public static string Version = Devart.Data.MySql.MySqlBackup.Version;
         public static string DateVersion = "October 18, 2022";
@@ -31,7 +31,7 @@ namespace MySqlBackupTestApp
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main()
+        private static void Main()
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

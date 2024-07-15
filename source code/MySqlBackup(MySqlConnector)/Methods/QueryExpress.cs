@@ -8,30 +8,26 @@ namespace MySqlConnector
 {
     public class QueryExpress
     {
-        static NumberFormatInfo _numberFormatInfo = new NumberFormatInfo()
+        public static NumberFormatInfo MySqlNumberFormat { get; } = new()
         {
             NumberDecimalSeparator = ".",
             NumberGroupSeparator = string.Empty
         };
 
-        static DateTimeFormatInfo _dateFormatInfo = new DateTimeFormatInfo()
+        public static DateTimeFormatInfo MySqlDateTimeFormat { get; } = new()
         {
             DateSeparator = "-",
             TimeSeparator = ":"
         };
 
-        public static NumberFormatInfo MySqlNumberFormat { get { return _numberFormatInfo; } }
-
-        public static DateTimeFormatInfo MySqlDateTimeFormat { get { return _dateFormatInfo; } }
-
         public static DataTable GetTable(MySqlCommand cmd, string sql)
         {
             DataTable dt = new DataTable();
             cmd.CommandText = sql;
-            using (MySqlDataAdapter da = new MySqlDataAdapter(cmd))
-            {
-                da.Fill(dt);
-            }
+            
+            using MySqlDataAdapter da = new MySqlDataAdapter(cmd);
+            da.Fill(dt);
+            
             return dt;
         }
 
@@ -39,10 +35,11 @@ namespace MySqlConnector
         {
             cmd.CommandText = sql;
             object ob = cmd.ExecuteScalar();
-            if (ob is byte[])
-                return Encoding.UTF8.GetString((byte[])ob);
-            else
-                return ob + "";
+            
+            if (ob is byte[] bytes)
+                return Encoding.UTF8.GetString(bytes);
+            
+            return ob + "";
         }
 
         public static string ExecuteScalarStr(MySqlCommand cmd, string sql, int columnIndex)
@@ -51,8 +48,8 @@ namespace MySqlConnector
 
             if (dt.Rows[0][columnIndex] is byte[])
                 return Encoding.UTF8.GetString((byte[])dt.Rows[0][columnIndex]);
-            else
-                return dt.Rows[0][columnIndex] + "";
+            
+            return dt.Rows[0][columnIndex] + "";
         }
 
         public static string ExecuteScalarStr(MySqlCommand cmd, string sql, string columnName)
@@ -61,8 +58,8 @@ namespace MySqlConnector
 
             if (dt.Rows[0][columnName] is byte[])
                 return Encoding.UTF8.GetString((byte[])dt.Rows[0][columnName]);
-            else
-                return dt.Rows[0][columnName] + "";
+            
+            return dt.Rows[0][columnName] + "";
         }
 
         public static long ExecuteScalarLong(MySqlCommand cmd, string sql)
@@ -78,14 +75,12 @@ namespace MySqlConnector
             var builder = new StringBuilder();
 
             foreach (char c in data)
-            {
-                escape_string(builder, c);
-            }
+                EscapeString(builder, c);
 
             return builder.ToString();
         }
 
-        static void escape_string(StringBuilder sb, char c)
+        private static void EscapeString(StringBuilder sb, char c)
         {
             switch (c)
             {
@@ -137,7 +132,7 @@ namespace MySqlConnector
             sb.AppendFormat(definer);
 
             bool pointAliasReached = false;
-            bool point3rdQuoteReached = false;
+            bool point3RdQuoteReached = false;
 
             for (int i = dIndex + definer.Length; i < input.Length; i++)
             {
@@ -150,10 +145,10 @@ namespace MySqlConnector
                     continue;
                 }
 
-                if (!point3rdQuoteReached)
+                if (!point3RdQuoteReached)
                 {
                     if (input[i] == '`')
-                        point3rdQuoteReached = true;
+                        point3RdQuoteReached = true;
 
                     sb.Append(input[i]);
                     continue;
@@ -178,195 +173,191 @@ namespace MySqlConnector
         {
             StringBuilder sb = new StringBuilder();
 
-            if (ob == null || ob is System.DBNull)
+            switch (ob)
             {
-                sb.AppendFormat("NULL");
-            }
-            else if (ob is System.String)
-            {
-                string str = (string)ob;
-
-                if (escapeStringSequence)
-                    str = QueryExpress.EscapeStringSequence(str);
-
-                if (wrapStringWithSingleQuote)
-                    sb.AppendFormat("'");
-
-                sb.Append(str);
-
-                if (wrapStringWithSingleQuote)
-                    sb.AppendFormat("'");
-            }
-            else if (ob is System.Boolean)
-            {
-                sb.AppendFormat(Convert.ToInt32(ob).ToString());
-            }
-            else if (ob is System.Byte[])
-            {
-                if (((byte[])ob).Length == 0)
+                case null or System.DBNull:
+                    sb.AppendFormat("NULL");
+                    break;
+                case string strObj:
                 {
+                    string str = strObj;
+
+                    if (escapeStringSequence)
+                        str = QueryExpress.EscapeStringSequence(str);
+
                     if (wrapStringWithSingleQuote)
-                        return "''";
-                    else
-                        return "";
+                        sb.AppendFormat("'");
+
+                    sb.Append(str);
+
+                    if (wrapStringWithSingleQuote)
+                        sb.AppendFormat("'");
+                    break;
                 }
-                else
+                case bool:
+                    sb.AppendFormat(Convert.ToInt32(ob).ToString());
+                    break;
+                case byte[] { Length: 0 }:
                 {
-                    if (blobExportMode == BlobDataExportMode.HexString)
-                    {
-                        sb.AppendFormat(CryptoExpress.ConvertByteArrayToHexString((byte[])ob));
-                    }
-                    else if (blobExportMode == BlobDataExportMode.BinaryChar)
+                    return wrapStringWithSingleQuote ? "''" : "";
+                }
+                case byte[] byteObj when blobExportMode == BlobDataExportMode.HexString:
+                    sb.AppendFormat(CryptoExpress.ConvertByteArrayToHexString(byteObj));
+                    break;
+                case byte[] byteObj:
+                {
+                    if (blobExportMode == BlobDataExportMode.BinaryChar)
                     {
                         if (wrapStringWithSingleQuote)
                             sb.Append("'");
 
-                        foreach (byte b in ((byte[])ob))
+                        foreach (byte b in byteObj)
                         {
                             char ch = (char)b;
-                            escape_string(sb, ch);
+                            EscapeString(sb, ch);
                         }
 
                         if (wrapStringWithSingleQuote)
                             sb.Append("'");
                     }
+
+                    break;
                 }
-            }
-            else if (ob is short)
-            {
-                sb.AppendFormat(((short)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is int)
-            {
-                sb.AppendFormat(((int)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is long)
-            {
-                sb.AppendFormat(((long)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is ushort)
-            {
-                sb.AppendFormat(((ushort)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is uint)
-            {
-                sb.AppendFormat(((uint)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is ulong)
-            {
-                sb.AppendFormat(((ulong)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is double)
-            {
-                sb.AppendFormat(((double)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is decimal)
-            {
-                sb.AppendFormat(((decimal)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is float)
-            {
-                sb.AppendFormat(((float)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is byte)
-            {
-                sb.AppendFormat(((byte)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is sbyte)
-            {
-                sb.AppendFormat(((sbyte)ob).ToString(_numberFormatInfo));
-            }
-            else if (ob is TimeSpan)
-            {
-                TimeSpan ts = (TimeSpan)ob;
-
-                if (wrapStringWithSingleQuote)
-                    sb.AppendFormat("'");
-
-                sb.AppendFormat(((int)ts.TotalHours).ToString().PadLeft(2, '0'));
-                sb.AppendFormat(":");
-                sb.AppendFormat(ts.Duration().Minutes.ToString().PadLeft(2, '0'));
-                sb.AppendFormat(":");
-                sb.AppendFormat(ts.Duration().Seconds.ToString().PadLeft(2, '0'));
-
-                if (wrapStringWithSingleQuote)
-                    sb.AppendFormat("'");
-
-            }
-            else if (ob is System.DateTime)
-            {
-                if (wrapStringWithSingleQuote)
-                    sb.AppendFormat("'");
-
-                sb.AppendFormat(((DateTime)ob).ToString("yyyy-MM-dd HH:mm:ss", _dateFormatInfo));
-
-                if (col.TimeFractionLength > 0)
+                case short strObj:
+                    sb.AppendFormat(strObj.ToString(MySqlNumberFormat));
+                    break;
+                case int intObj:
+                    sb.AppendFormat(intObj.ToString(MySqlNumberFormat));
+                    break;
+                case long longObj:
+                    sb.AppendFormat(longObj.ToString(MySqlNumberFormat));
+                    break;
+                case ushort shortObj:
+                    sb.AppendFormat(shortObj.ToString(MySqlNumberFormat));
+                    break;
+                case uint uIntObj:
+                    sb.AppendFormat(uIntObj.ToString(MySqlNumberFormat));
+                    break;
+                case ulong uLongObj:
+                    sb.AppendFormat(uLongObj.ToString(MySqlNumberFormat));
+                    break;
+                case double dblObj:
+                    sb.AppendFormat(dblObj.ToString(MySqlNumberFormat));
+                    break;
+                case decimal decObj:
+                    sb.AppendFormat(decObj.ToString(MySqlNumberFormat));
+                    break;
+                case float floatObj:
+                    sb.AppendFormat(floatObj.ToString(MySqlNumberFormat));
+                    break;
+                case byte byteObj:
+                    sb.AppendFormat(byteObj.ToString(MySqlNumberFormat));
+                    break;
+                case sbyte sByteObj:
+                    sb.AppendFormat(sByteObj.ToString(MySqlNumberFormat));
+                    break;
+                case TimeSpan timeSpanObj:
                 {
-                    sb.Append(".");
-                    string _microsecond = ((DateTime)ob).ToString("".PadLeft(col.TimeFractionLength, 'f'));
-                    sb.Append(_microsecond);
-                }
-
-                if (wrapStringWithSingleQuote)
-                    sb.AppendFormat("'");
-            }
-            else if (ob is MySqlDateTime mdt)
-            {
-                if (mdt.IsValidDateTime)
-                {
-                    DateTime dtime = mdt.GetDateTime();
+                    TimeSpan ts = timeSpanObj;
 
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
 
-                    if (col.MySqlDataType == "datetime")
-                        sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", _dateFormatInfo));
-                    else if (col.MySqlDataType == "date")
-                        sb.AppendFormat(dtime.ToString("yyyy-MM-dd", _dateFormatInfo));
-                    else if (col.MySqlDataType == "time")
-                        sb.AppendFormat("{0}:{1}:{2}", mdt.Hour, mdt.Minute, mdt.Second);
-                    else
-                        sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", _dateFormatInfo));
+                    sb.AppendFormat(((int)ts.TotalHours).ToString().PadLeft(2, '0'));
+                    sb.AppendFormat(":");
+                    sb.AppendFormat(ts.Duration().Minutes.ToString().PadLeft(2, '0'));
+                    sb.AppendFormat(":");
+                    sb.AppendFormat(ts.Duration().Seconds.ToString().PadLeft(2, '0'));
+
+                    if (wrapStringWithSingleQuote)
+                        sb.AppendFormat("'");
+                    break;
+                }
+                case DateTime dateTimeObj:
+                {
+                    if (wrapStringWithSingleQuote)
+                        sb.AppendFormat("'");
+
+                    sb.AppendFormat(dateTimeObj.ToString("yyyy-MM-dd HH:mm:ss", MySqlDateTimeFormat));
 
                     if (col.TimeFractionLength > 0)
                     {
                         sb.Append(".");
-                        sb.Append(((MySqlDateTime)ob).Microsecond.ToString().PadLeft(col.TimeFractionLength, '0'));
+                        string microsecond = dateTimeObj.ToString("".PadLeft(col.TimeFractionLength, 'f'));
+                        sb.Append(microsecond);
                     }
 
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
+                    break;
                 }
-                else
+                case MySqlDateTime { IsValidDateTime: true } mySqlDateTime:
                 {
+                    DateTime dtime = mySqlDateTime.GetDateTime();
+
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
 
-                    if (col.MySqlDataType == "datetime")
-                        sb.AppendFormat("0000-00-00 00:00:00");
-                    else if (col.MySqlDataType == "date")
-                        sb.AppendFormat("0000-00-00");
-                    else if (col.MySqlDataType == "time")
-                        sb.AppendFormat("00:00:00");
-                    else
-                        sb.AppendFormat("0000-00-00 00:00:00");
+                    switch (col.MySqlDataType)
+                    {
+                        case "datetime":
+                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", MySqlDateTimeFormat));
+                            break;
+                        case "date":
+                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd", MySqlDateTimeFormat));
+                            break;
+                        case "time":
+                            sb.AppendFormat("{0}:{1}:{2}", mySqlDateTime.Hour, mySqlDateTime.Minute, mySqlDateTime.Second);
+                            break;
+                        default:
+                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", MySqlDateTimeFormat));
+                            break;
+                    }
 
                     if (col.TimeFractionLength > 0)
                     {
-                        sb.Append(".".PadRight(col.TimeFractionLength, '0'));
+                        sb.Append(".");
+                        sb.Append(mySqlDateTime.Microsecond.ToString().PadLeft(col.TimeFractionLength, '0'));
                     }
 
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
+                    
+                    break;
                 }
-            }
-            else if (ob is System.Guid)
-            {
-                if (col.MySqlDataType == "binary(16)")
+                case MySqlDateTime:
                 {
-                    sb.Append(CryptoExpress.ConvertByteArrayToHexString(((Guid)ob).ToByteArray()));
+                    if (wrapStringWithSingleQuote)
+                        sb.AppendFormat("'");
+
+                    switch (col.MySqlDataType)
+                    {
+                        case "datetime":
+                            sb.AppendFormat("0000-00-00 00:00:00");
+                            break;
+                        case "date":
+                            sb.AppendFormat("0000-00-00");
+                            break;
+                        case "time":
+                            sb.AppendFormat("00:00:00");
+                            break;
+                        default:
+                            sb.AppendFormat("0000-00-00 00:00:00");
+                            break;
+                    }
+
+                    if (col.TimeFractionLength > 0)
+                        sb.Append(".".PadRight(col.TimeFractionLength, '0'));
+
+                    if (wrapStringWithSingleQuote)
+                        sb.AppendFormat("'");
+                    
+                    break;
                 }
-                else if (col.MySqlDataType == "char(36)")
+                case Guid guidObj when col.MySqlDataType == "binary(16)":
+                    sb.Append(CryptoExpress.ConvertByteArrayToHexString(guidObj.ToByteArray()));
+                    break;
+                case Guid when col.MySqlDataType == "char(36)":
                 {
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
@@ -375,8 +366,10 @@ namespace MySqlConnector
 
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
+                    
+                    break;
                 }
-                else
+                case Guid:
                 {
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
@@ -385,14 +378,13 @@ namespace MySqlConnector
 
                     if (wrapStringWithSingleQuote)
                         sb.AppendFormat("'");
+                    
+                    break;
                 }
-            }
-            else
-            {
-                throw new Exception("Unhandled data type. Current processing data type: " + ob.GetType().ToString() + ". Please report this bug with this message to the development team.");
+                default:
+                    throw new Exception("Unhandled data type. Current processing data type: " + ob.GetType().ToString() + ". Please report this bug with this message to the development team.");
             }
             return sb.ToString();
         }
-
     }
 }

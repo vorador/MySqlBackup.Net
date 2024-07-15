@@ -11,7 +11,7 @@ namespace MySqlBackupTestApp
 {
     public partial class FormQueryBrowser2 : Form
     {
-        DataTable dt = new DataTable();
+        private DataTable _dt = new DataTable();
 
         public FormQueryBrowser2()
         {
@@ -21,22 +21,22 @@ namespace MySqlBackupTestApp
             dataGridView1.CellValueNeeded += dataGridView1_CellValueNeeded;
         }
 
-        void dataGridView1_CellValueNeeded(object sender, DataGridViewCellValueEventArgs e)
+        private void dataGridView1_CellValueNeeded(object sender, DataGridViewCellValueEventArgs e)
         {
             try
             {
-                if (e.RowIndex >= dt.Rows.Count)
+                if (e.RowIndex >= _dt.Rows.Count)
                     return;
-                if (e.ColumnIndex >= dt.Columns.Count)
+                if (e.ColumnIndex >= _dt.Columns.Count)
                     return;
 
-                if (dt.Rows[e.RowIndex][e.ColumnIndex] == null || dt.Rows[e.RowIndex][e.ColumnIndex] is DBNull)
+                if (_dt.Rows[e.RowIndex][e.ColumnIndex] == null || _dt.Rows[e.RowIndex][e.ColumnIndex] is DBNull)
                 {
                     e.Value = "null";
                     return;
                 }
 
-                Type dtype = dt.Columns[e.ColumnIndex].DataType;
+                Type dtype = _dt.Columns[e.ColumnIndex].DataType;
 
                 if (dtype == typeof(byte[]))
                 {
@@ -44,11 +44,11 @@ namespace MySqlBackupTestApp
                 }
                 else if (dtype == typeof(DateTime))
                 {
-                    e.Value = ((DateTime)dt.Rows[e.RowIndex][e.ColumnIndex]).ToString("yyyy-MM-dd HH:mm:ss");
+                    e.Value = ((DateTime)_dt.Rows[e.RowIndex][e.ColumnIndex]).ToString("yyyy-MM-dd HH:mm:ss");
                 }
                 else
                 {
-                    e.Value = dt.Rows[e.RowIndex][e.ColumnIndex] + "";
+                    e.Value = _dt.Rows[e.RowIndex][e.ColumnIndex] + "";
                 }
             }
             catch (Exception ex)
@@ -60,7 +60,7 @@ namespace MySqlBackupTestApp
 
         private void btSQL_Click(object sender, EventArgs e)
         {
-            ExecuteSQL();
+            ExecuteSql();
         }
 
         private void textBox1_KeyDown(object sender, KeyEventArgs e)
@@ -72,7 +72,7 @@ namespace MySqlBackupTestApp
             }
             else if (e.Control && e.KeyCode == Keys.Enter)
             {
-                ExecuteSQL();
+                ExecuteSql();
                 e.SuppressKeyPress = true;
             }
             else if (e.KeyCode == Keys.Escape)
@@ -82,14 +82,14 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void ExecuteSQL()
+        private void ExecuteSql()
         {
             try
             {
                 dataGridView1.Rows.Clear();
                 dataGridView1.Columns.Clear();
 
-                dt = new DataTable();
+                _dt = new DataTable();
 
                 string sql = textBox1.Text;
 
@@ -108,7 +108,7 @@ namespace MySqlBackupTestApp
                         {
                             cmd.CommandText = sql;
                             MySqlDataAdapter da = new MySqlDataAdapter(cmd);
-                            da.Fill(dt);
+                            da.Fill(_dt);
                         }
                         else
                         {
@@ -117,15 +117,15 @@ namespace MySqlBackupTestApp
                             cmd.CommandText = sql;
                             int rowsAffected = cmd.ExecuteNonQuery();
 
-                            dt.Columns.Add("Result");
+                            _dt.Columns.Add("Result");
 
                             if (rowsAffected < 2)
                             {
-                                dt.Rows.Add(rowsAffected + " row affected by the last command, no resultset returned.");
+                                _dt.Rows.Add(rowsAffected + " row affected by the last command, no resultset returned.");
                             }
                             else
                             {
-                                dt.Rows.Add(rowsAffected + " rows affected by the last command, no resultset returned.");
+                                _dt.Rows.Add(rowsAffected + " rows affected by the last command, no resultset returned.");
                             }
                         }
 
@@ -133,26 +133,26 @@ namespace MySqlBackupTestApp
                     }
                 }
 
-                foreach (DataColumn dc in dt.Columns)
+                foreach (DataColumn dc in _dt.Columns)
                 {
-                    DataGridViewTextBoxColumn dgvTB = new DataGridViewTextBoxColumn();
-                    dgvTB.HeaderText = dc.ColumnName;
-                    dataGridView1.Columns.Add(dgvTB);
+                    DataGridViewTextBoxColumn dgvTb = new DataGridViewTextBoxColumn();
+                    dgvTb.HeaderText = dc.ColumnName;
+                    dataGridView1.Columns.Add(dgvTb);
                     if (isExecution)
                     {
-                        dgvTB.Width = 700;
+                        dgvTb.Width = 700;
                     }
                     else
                     {
-                        dgvTB.Width = (int)numericUpDown1.Value;
+                        dgvTb.Width = (int)numericUpDown1.Value;
                     }
                 }
 
                 dataGridView1.RowTemplate.Height = 25;
 
-                if (dt.Rows.Count > 0)
+                if (_dt.Rows.Count > 0)
                 {
-                    dataGridView1.Rows.Add(dt.Rows.Count);
+                    dataGridView1.Rows.Add(_dt.Rows.Count);
                 }
                 dataGridView1.ClearSelection();
             }
@@ -162,16 +162,16 @@ namespace MySqlBackupTestApp
                 dataGridView1.Columns.Clear();
 
                 string err = ex.ToString();
-                dt = new DataTable();
-                dt.Columns.Add("Error");
-                dt.Rows.Add(err);
+                _dt = new DataTable();
+                _dt.Columns.Add("Error");
+                _dt.Rows.Add(err);
 
                 dataGridView1.RowTemplate.Height = 300;
 
-                DataGridViewTextBoxColumn dgvTB = new DataGridViewTextBoxColumn();
-                dgvTB.Width = 750;
-                dgvTB.HeaderText = "Error";
-                dataGridView1.Columns.Add(dgvTB);
+                DataGridViewTextBoxColumn dgvTb = new DataGridViewTextBoxColumn();
+                dgvTb.Width = 750;
+                dgvTb.HeaderText = "Error";
+                dataGridView1.Columns.Add(dgvTb);
                 dataGridView1.Rows.Add(1);
 
                 dataGridView1.ClearSelection();
@@ -180,7 +180,7 @@ namespace MySqlBackupTestApp
 
         private void FormQueryBrowser2_Load(object sender, EventArgs e)
         {
-            ExecuteSQL();
+            ExecuteSql();
         }
     }
 }

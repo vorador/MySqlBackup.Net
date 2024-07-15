@@ -8,26 +8,26 @@ namespace MySqlBackupTestApp
 {
     public partial class FormTestExportProgresBar : Form
     {
-        MySqlConnection conn;
-        MySqlCommand cmd;
-        MySqlBackup mb;
-        Timer timer1;
-        BackgroundWorker bwExport;
+        private MySqlConnection _conn;
+        private MySqlCommand _cmd;
+        private readonly MySqlBackup _mb;
+        private readonly Timer _timer1;
+        private readonly BackgroundWorker _bwExport;
 
-        string _currentTableName = string.Empty;
-        int _totalRowsInCurrentTable = 0;
-        int _totalRowsInAllTables = 0;
-        int _currentRowIndexInCurrentTable = 0;
-        int _currentRowIndexInAllTable = 0;
-        int _totalTables = 0;
-        int _currentTableIndex = 0;
+        private string _currentTableName = string.Empty;
+        private int _totalRowsInCurrentTable = 0;
+        private int _totalRowsInAllTables = 0;
+        private int _currentRowIndexInCurrentTable = 0;
+        private int _currentRowIndexInAllTable = 0;
+        private int _totalTables = 0;
+        private int _currentTableIndex = 0;
 
-        RowsDataExportMode exportMode;
+        private RowsDataExportMode _exportMode;
 
-        bool cancel = false;
+        private bool _cancel = false;
 
-        DateTime timeStart = DateTime.MinValue;
-        DateTime timeEnd = DateTime.MinValue;
+        private DateTime _timeStart = DateTime.MinValue;
+        private DateTime _timeEnd = DateTime.MinValue;
 
         public FormTestExportProgresBar()
         {
@@ -48,21 +48,21 @@ namespace MySqlBackupTestApp
             comboBox_RowsExportMode.ValueMember = "id";
             comboBox_RowsExportMode.SelectedIndex = 0;
 
-            mb = new MySqlBackup();
-            mb.ExportProgressChanged += mb_ExportProgressChanged;
+            _mb = new MySqlBackup();
+            _mb.ExportProgressChanged += mb_ExportProgressChanged;
 
-            timer1 = new Timer();
-            timer1.Interval = 50;
-            timer1.Tick += timer1_Tick;
+            _timer1 = new Timer();
+            _timer1.Interval = 50;
+            _timer1.Tick += timer1_Tick;
 
-            bwExport = new BackgroundWorker();
-            bwExport.DoWork += bwExport_DoWork;
-            bwExport.RunWorkerCompleted += bwExport_RunWorkerCompleted;
+            _bwExport = new BackgroundWorker();
+            _bwExport.DoWork += bwExport_DoWork;
+            _bwExport.RunWorkerCompleted += bwExport_RunWorkerCompleted;
         }
 
         private void btCancel_Click(object sender, EventArgs e)
         {
-            cancel = true;
+            _cancel = true;
         }
 
         private void btExport_Click(object sender, EventArgs e)
@@ -78,39 +78,39 @@ namespace MySqlBackupTestApp
             _currentRowIndexInAllTable = 0;
             _totalTables = 0;
             _currentTableIndex = 0;
-            exportMode = (RowsDataExportMode)comboBox_RowsExportMode.SelectedValue;
+            _exportMode = (RowsDataExportMode)comboBox_RowsExportMode.SelectedValue;
 
-            conn = new MySqlConnection(Program.ConnectionString);
-            cmd = new MySqlCommand();
-            cmd.Connection = conn;
-            conn.Open();
+            _conn = new MySqlConnection(Program.ConnectionString);
+            _cmd = new MySqlCommand();
+            _cmd.Connection = _conn;
+            _conn.Open();
 
-            timer1.Interval = (int)nmExInterval.Value;
-            timer1.Start();
+            _timer1.Interval = (int)nmExInterval.Value;
+            _timer1.Start();
 
-            mb.ExportInfo.IntervalForProgressReport = (int)nmExInterval.Value;
+            _mb.ExportInfo.IntervalForProgressReport = (int)nmExInterval.Value;
 
             if (cbGetTotalRowsMode.SelectedIndex < 1)
-                mb.ExportInfo.GetTotalRowsMode = GetTotalRowsMethod.InformationSchema;
+                _mb.ExportInfo.GetTotalRowsMode = GetTotalRowsMethod.InformationSchema;
             else if (cbGetTotalRowsMode.SelectedIndex == 1)
-                mb.ExportInfo.GetTotalRowsMode = GetTotalRowsMethod.SelectCount;
+                _mb.ExportInfo.GetTotalRowsMode = GetTotalRowsMethod.SelectCount;
             else
-                mb.ExportInfo.GetTotalRowsMode = GetTotalRowsMethod.Skip;
+                _mb.ExportInfo.GetTotalRowsMode = GetTotalRowsMethod.Skip;
 
-            mb.Command = cmd;
+            _mb.Command = _cmd;
 
-            timeStart = DateTime.Now;
+            _timeStart = DateTime.Now;
             lbTotalTime.Text = string.Empty;
 
-            bwExport.RunWorkerAsync();
+            _bwExport.RunWorkerAsync();
         }
 
-        void bwExport_DoWork(object sender, DoWorkEventArgs e)
+        private void bwExport_DoWork(object sender, DoWorkEventArgs e)
         {
             try
             {
-                mb.ExportInfo.RowsExportMode = exportMode;
-                mb.ExportToFile(Program.TargetFile);
+                _mb.ExportInfo.RowsExportMode = _exportMode;
+                _mb.ExportToFile(Program.TargetFile);
             }
             catch (Exception ex)
             {
@@ -119,22 +119,22 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void bwExport_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void bwExport_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             CloseConnection();
-            timer1.Stop();
+            _timer1.Stop();
 
-            timeEnd = DateTime.Now;
-            var ts = timeEnd - timeStart;
+            _timeEnd = DateTime.Now;
+            var ts = _timeEnd - _timeStart;
             lbTotalTime.Text = $"{ts.Hours} h {ts.Minutes} m {ts.Seconds} s {ts.Milliseconds} ms";
 
-            if (cancel)
+            if (_cancel)
             {
                 MessageBox.Show("Cancel by user.");
             }
             else
             {
-                if (mb.LastError == null)
+                if (_mb.LastError == null)
                 {
                     timer1_Tick(null, null);
 
@@ -150,15 +150,15 @@ namespace MySqlBackupTestApp
                     MessageBox.Show("Completed.");
                 }
                 else
-                    MessageBox.Show("Completed with error(s)." + Environment.NewLine + Environment.NewLine + mb.LastError.ToString());
+                    MessageBox.Show("Completed with error(s)." + Environment.NewLine + Environment.NewLine + _mb.LastError.ToString());
             }
         }
 
-        void mb_ExportProgressChanged(object sender, ExportProgressArgs e)
+        private void mb_ExportProgressChanged(object sender, ExportProgressArgs e)
         {
-            if (cancel)
+            if (_cancel)
             {
-                mb.StopAllProcess();
+                _mb.StopAllProcess();
                 return;
             }
 
@@ -171,11 +171,11 @@ namespace MySqlBackupTestApp
             _totalTables = e.TotalTables;
         }
 
-        void timer1_Tick(object sender, EventArgs e)
+        private void timer1_Tick(object sender, EventArgs e)
         {
-            if (cancel)
+            if (_cancel)
             {
-                timer1.Stop();
+                _timer1.Stop();
                 return;
             }
 
@@ -203,16 +203,16 @@ namespace MySqlBackupTestApp
             lbTotalRows_Tables.Text = _totalTables + "\r\n" + _totalRowsInAllTables;
         }
 
-        void CloseConnection()
+        private void CloseConnection()
         {
-            if (conn != null)
+            if (_conn != null)
             {
-                conn.Close();
-                conn.Dispose();
+                _conn.Close();
+                _conn.Dispose();
             }
 
-            if (cmd != null)
-                cmd.Dispose();
+            if (_cmd != null)
+                _cmd.Dispose();
         }
     }
 }

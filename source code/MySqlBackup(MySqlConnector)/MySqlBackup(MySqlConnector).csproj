@@ -22,6 +22,7 @@
     <PackageTags>mysqlbackup;mysqlconnector</PackageTags>
     <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
     <Title>MySqlBackup.NET for MySqlConnector</Title>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>

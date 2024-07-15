@@ -2,29 +2,25 @@
 {
     public class MySqlEvent
     {
-        string _name;
-        string _createEventSql = string.Empty;
-        string _createEventSqlWithoutDefiner = string.Empty;
-
-        public string Name { get { return _name; } }
-        public string CreateEventSql { get { return _createEventSql; } }
-        public string CreateEventSqlWithoutDefiner { get { return _createEventSqlWithoutDefiner; } }
+        public string Name { get; }
+        public string CreateEventSql { get; } = string.Empty;
+        public string CreateEventSqlWithoutDefiner { get; } = string.Empty;
 
         public MySqlEvent(MySqlCommand cmd, string eventName, string definer)
         {
-            _name = eventName;
+            Name = eventName;
 
-            _createEventSql = QueryExpress.ExecuteScalarStr(cmd, string.Format("SHOW CREATE EVENT `{0}`;", _name), "Create Event");
+            CreateEventSql = QueryExpress.ExecuteScalarStr(cmd, string.Format("SHOW CREATE EVENT `{0}`;", Name), "Create Event");
 
-            _createEventSql = _createEventSql.Replace("\r\n", "^~~~~~~~~~~~~~~^");
-            _createEventSql = _createEventSql.Replace("\n", "^~~~~~~~~~~~~~~^");
-            _createEventSql = _createEventSql.Replace("\r", "^~~~~~~~~~~~~~~^");
-            _createEventSql = _createEventSql.Replace("^~~~~~~~~~~~~~~^", "\r\n");
+            CreateEventSql = CreateEventSql.Replace("\r\n", "^~~~~~~~~~~~~~~^");
+            CreateEventSql = CreateEventSql.Replace("\n", "^~~~~~~~~~~~~~~^");
+            CreateEventSql = CreateEventSql.Replace("\r", "^~~~~~~~~~~~~~~^");
+            CreateEventSql = CreateEventSql.Replace("^~~~~~~~~~~~~~~^", "\r\n");
 
             string[] sa = definer.Split('@');
-            definer = string.Format(" DEFINER=`{0}`@`{1}`", sa[0], sa[1]);
+            definer = $" DEFINER=`{sa[0]}`@`{sa[1]}`";
 
-            _createEventSqlWithoutDefiner = _createEventSql.Replace(definer, string.Empty);
+            CreateEventSqlWithoutDefiner = CreateEventSql.Replace(definer, string.Empty);
         }
     }
 }

@@ -7,13 +7,11 @@ namespace MySqlConnector
 {
     public class MySqlEventList : IDisposable, IEnumerable<MySqlEvent>
     {
-        string _sqlShowEvents = string.Empty;
-        Dictionary<string, MySqlEvent> _lst = new Dictionary<string, MySqlEvent>();
+        private Dictionary<string, MySqlEvent> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowEvent { get { return _sqlShowEvents; } }
+        public string SqlShowEvent { get; } = string.Empty;
 
         public MySqlEventList()
         { }
@@ -23,8 +21,8 @@ namespace MySqlConnector
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowEvents = string.Format("SHOW EVENTS WHERE UPPER(TRIM(Db))=UPPER(TRIM('{0}'));", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowEvents);
+                SqlShowEvent = $"SHOW EVENTS WHERE UPPER(TRIM(Db))=UPPER(TRIM('{dbname}'));";
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowEvent);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,11 +33,7 @@ namespace MySqlConnector
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
-            }
-            catch
-            {
-                throw;
+                    AllowAccess = false;
             }
         }
 
@@ -47,20 +41,14 @@ namespace MySqlConnector
         {
             get
             {
-                if (_lst.ContainsKey(eventName))
-                    return _lst[eventName];
+                if (_lst.TryGetValue(eventName, out MySqlEvent mySqlEvent))
+                    return mySqlEvent;
 
                 throw new Exception("Event \"" + eventName + "\" is not existed.");
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return _lst.Count;
-            }
-        }
+        public int Count => _lst.Count;
 
         public bool Contains(string eventName)
         {
@@ -75,10 +63,9 @@ namespace MySqlConnector
 
         public void Dispose()
         {
-            foreach (var key in _lst.Keys)
-            {
+            foreach (string key in _lst.Keys)
                 _lst[key] = null;
-            }
+            
             _lst = null;
         }
     }

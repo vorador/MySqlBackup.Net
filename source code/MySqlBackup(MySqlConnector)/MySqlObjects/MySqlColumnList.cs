@@ -7,11 +7,10 @@ namespace MySqlConnector
 {
     public class MySqlColumnList : IDisposable, IEnumerable<MySqlColumn>
     {
-        string _tableName;
-        string _sqlShowFullColumns = string.Empty;
-        Dictionary<string, MySqlColumn> _lst = new Dictionary<string, MySqlColumn>();
+        private readonly string _tableName;
+        private Dictionary<string, MySqlColumn> _lst = new();
 
-        public string SqlShowFullColumns { get { return _sqlShowFullColumns; } }
+        public string SqlShowFullColumns { get; } = string.Empty;
 
         public MySqlColumnList()
         { }
@@ -21,17 +20,15 @@ namespace MySqlConnector
             _tableName = tableName;
             DataTable dtDataType = QueryExpress.GetTable(cmd, string.Format("SELECT * FROM  `{0}` where 1 = 2;", tableName));
             
-            _sqlShowFullColumns = string.Format("SHOW FULL COLUMNS FROM `{0}`;", tableName);
-            DataTable dtColInfo = QueryExpress.GetTable(cmd, _sqlShowFullColumns);
+            SqlShowFullColumns = string.Format("SHOW FULL COLUMNS FROM `{0}`;", tableName);
+            DataTable dtColInfo = QueryExpress.GetTable(cmd, SqlShowFullColumns);
 
             for (int i = 0; i < dtDataType.Columns.Count; i++)
             {
                 string isNullStr = (dtColInfo.Rows[i]["Null"] + "").ToLower();
-                bool isNull = false;
-                if (isNullStr == "yes")
-                    isNull = true;
+                bool isNull = isNullStr == "yes";
 
-                var name = dtDataType.Columns[i].ColumnName;
+                string name = dtDataType.Columns[i].ColumnName;
                 _lst.Add(
                     name, 
                     new MySqlColumn(
@@ -45,7 +42,7 @@ namespace MySqlConnector
                         dtColInfo.Rows[i]["Extra"] + "",
                         dtColInfo.Rows[i]["Privileges"] + "", 
                         dtColInfo.Rows[i]["Comment"] + "")
-                    );
+                );
             }
         }
 
@@ -53,20 +50,14 @@ namespace MySqlConnector
         {
             get
             {
-                if (_lst.ContainsKey(columnName))
-                    return _lst[columnName];
+                if (_lst.TryGetValue(columnName, out MySqlColumn column))
+                    return column;
 
                 throw new Exception("Column \"" + columnName + "\" is not existed in table \"" + _tableName + "\".");
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return _lst.Count;
-            }
-        }
+        public int Count => _lst.Count;
 
         public bool Contains(string columnName)
         {
@@ -75,10 +66,9 @@ namespace MySqlConnector
 
         public void Dispose()
         {
-            foreach (var key in _lst.Keys)
-            {
+            foreach (string key in _lst.Keys)
                 _lst[key] = null;
-            }
+            
             _lst = null;
         }
 

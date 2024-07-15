@@ -9,25 +9,25 @@ namespace MySqlBackupTestApp
 {
     public partial class FormDatabaseInfo : Form
     {
-        StringBuilder sb;
-        MySqlServer myServer;
-        MySqlDatabase myDatabase;
-        MySqlCommand cmd;
-        Timer timer1;
-        BackgroundWorker bw;
+        private StringBuilder _sb;
+        private MySqlServer _myServer;
+        private MySqlDatabase _myDatabase;
+        private MySqlCommand _cmd;
+        private readonly Timer _timer1;
+        private readonly BackgroundWorker _bw;
 
         public FormDatabaseInfo()
         {
-            timer1 = new Timer();
-            timer1.Interval = 100;
-            timer1.Tick += timer1_Tick;
-            bw = new BackgroundWorker();
-            bw.RunWorkerCompleted += bw_RunWorkerCompleted;
-            bw.DoWork += bw_DoWork;
+            _timer1 = new Timer();
+            _timer1.Interval = 100;
+            _timer1.Tick += timer1_Tick;
+            _bw = new BackgroundWorker();
+            _bw.RunWorkerCompleted += bw_RunWorkerCompleted;
+            _bw.DoWork += bw_DoWork;
             InitializeComponent();
         }
 
-        void bw_DoWork(object sender, DoWorkEventArgs e)
+        private void bw_DoWork(object sender, DoWorkEventArgs e)
         {
             try
             {
@@ -39,16 +39,16 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void bw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void bw_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            webBrowser1.DocumentText = sb.ToString();
+            webBrowser1.DocumentText = _sb.ToString();
         }
 
-        void Start()
+        private void Start()
         {
-            sb = new StringBuilder();
-            sb.AppendLine("<html><head><style>h1 { line-height:160%; font-size: 20pt; } h2 { line-height:160%; font-size: 14pt; } body { font-family: \"Segoe UI\", Arial; line-height: 150%; } table { border: 1px solid #5C5C5C; border-collapse: collapse; } td { font-size: 10pt; padding: 4px; border: 1px solid #5C5C5C; } .code { font-family: \"Courier New\"; font-size: 10pt; line-height:110%; } </style></head>");
-            sb.AppendLine("<body>");
+            _sb = new StringBuilder();
+            _sb.AppendLine("<html><head><style>h1 { line-height:160%; font-size: 20pt; } h2 { line-height:160%; font-size: 14pt; } body { font-family: \"Segoe UI\", Arial; line-height: 150%; } table { border: 1px solid #5C5C5C; border-collapse: collapse; } td { font-size: 10pt; padding: 4px; border: 1px solid #5C5C5C; } .code { font-family: \"Courier New\"; font-size: 10pt; line-height:110%; } </style></head>");
+            _sb.AppendLine("<body>");
 
             using (MySqlConnection conn = new MySqlConnection(Program.ConnectionString))
             {
@@ -57,13 +57,13 @@ namespace MySqlBackupTestApp
                     conn.Open();
 
 
-                    cmd = new MySqlCommand();
-                    cmd.Connection = conn;
+                    _cmd = new MySqlCommand();
+                    _cmd.Connection = conn;
 
-                    myDatabase = new MySqlDatabase();
-                    myDatabase.GetDatabaseInfo(cmd,  GetTotalRowsMethod.InformationSchema);
-                    myServer = new MySqlServer();
-                    myServer.GetServerInfo(cmd);
+                    _myDatabase = new MySqlDatabase();
+                    _myDatabase.GetDatabaseInfo(_cmd,  GetTotalRowsMethod.InformationSchema);
+                    _myServer = new MySqlServer();
+                    _myServer.GetServerInfo(_cmd);
 
                     int stage = 1;
 
@@ -105,45 +105,45 @@ namespace MySqlBackupTestApp
                 }
             }
 
-            sb.Append("</body>");
-            sb.Append("</html>");
+            _sb.Append("</body>");
+            _sb.Append("</html>");
         }
 
-        void LoadDatabase()
+        private void LoadDatabase()
         {
             WriteHead1("Database");
-            WriteCodeBlock(myDatabase.CreateDatabaseSQL);
+            WriteCodeBlock(_myDatabase.CreateDatabaseSql);
         }
 
-        void LoadUser()
+        private void LoadUser()
         {
             WriteHead1("User");
 
             string sqlSelectCurrentUser = "SELECT current_user;";
             WriteCodeBlock(sqlSelectCurrentUser);
-            WriteCodeBlock(myServer.CurrentUserClientHost);
+            WriteCodeBlock(_myServer.CurrentUserClientHost);
         }
 
-        void LoadGlobalPrivilege()
+        private void LoadGlobalPrivilege()
         {
             WriteHead2("Global Privileges");
 
             string curUser = string.Empty;
-            if (myServer.CurrentUser != "root")
-                curUser = myServer.CurrentUser;
+            if (_myServer.CurrentUser != "root")
+                curUser = _myServer.CurrentUser;
             else
                 WriteText("Current user is \"root\". All privileges are granted by default.");
 
             string sqlShowUserPrivilege = "SELECT * FROM mysql.db WHERE `user` = '" + curUser + "';";
 
-            DataTable dt = QueryExpress.GetTable(cmd, sqlShowUserPrivilege);
+            DataTable dt = QueryExpress.GetTable(_cmd, sqlShowUserPrivilege);
 
 
             WriteCodeBlock(sqlShowUserPrivilege);
             WriteTable(dt);
         }
 
-        void LoadViewPrivilege()
+        private void LoadViewPrivilege()
         {
             WriteHead2("Privileges of View");
 
@@ -152,18 +152,18 @@ namespace MySqlBackupTestApp
 CONCAT(mv.Db, '.', mv.Table_name) `Views`,
 REPLACE(mv.Table_priv, ',', ', ') AS `Privileges`
 FROM  mysql.tables_priv mv
-WHERE mv.Db = '" + myDatabase.Name + @"' 
+WHERE mv.Db = '" + _myDatabase.Name + @"' 
 and mv.Table_name IN  
 (SELECT  DISTINCT v.table_name `views` FROM information_schema.views AS v) 
 ORDER BY  mv.Host,  mv.User,  mv.Db,  mv.Table_name;";
 
-            DataTable dtViewPrivilege = QueryExpress.GetTable(cmd, sqlViewPrivilege);
+            DataTable dtViewPrivilege = QueryExpress.GetTable(_cmd, sqlViewPrivilege);
 
             WriteCodeBlock(sqlViewPrivilege);
             WriteTable(dtViewPrivilege);
         }
 
-        void LoadProcedurePrivilege()
+        private void LoadProcedurePrivilege()
         {
             WriteHead2("Privileges of Procedure");
 
@@ -172,17 +172,17 @@ ORDER BY  mv.Host,  mv.User,  mv.Db,  mv.Table_name;";
 CONCAT(mp.Db, '.', mp.Routine_name) `Procedures`,
 REPLACE(mp.Proc_priv, ',', ', ') AS `Privileges`
 FROM  mysql.procs_priv mp
-WHERE mp.Db = '" + myDatabase.Name + @"' 
+WHERE mp.Db = '" + _myDatabase.Name + @"' 
 and mp.Routine_type = 'PROCEDURE' 
 ORDER BY  mp.Host,  mp.User,  mp.Db,  mp.Routine_name;";
 
-            DataTable dt = QueryExpress.GetTable(cmd, sqlProcedurePrivilege);
+            DataTable dt = QueryExpress.GetTable(_cmd, sqlProcedurePrivilege);
 
             WriteCodeBlock(sqlProcedurePrivilege);
             WriteTable(dt);
         }
 
-        void LoadFunctionPrivilege()
+        private void LoadFunctionPrivilege()
         {
             WriteHead2("Privileges of Function");
 
@@ -190,29 +190,29 @@ ORDER BY  mp.Host,  mp.User,  mp.Db,  mp.Routine_name;";
 @"SELECT  mf.host `Host`,  mf.user `User`,
 CONCAT(mf.Db, '.', mf.Routine_name) `Procedures`,
 REPLACE(mf.Proc_priv, ',', ', ') AS `Privileges`
-FROM  mysql.procs_priv mf WHERE mf.Db = '" + myDatabase.Name + @"'
+FROM  mysql.procs_priv mf WHERE mf.Db = '" + _myDatabase.Name + @"'
 and mf.Routine_type = 'FUNCTION' 
 ORDER BY  mf.Host,  mf.User,  mf.Db,  mf.Routine_name;";
 
-            DataTable dtPrivilegeFunction = QueryExpress.GetTable(cmd, sqlPrivilegeFunction);
+            DataTable dtPrivilegeFunction = QueryExpress.GetTable(_cmd, sqlPrivilegeFunction);
 
             WriteCodeBlock(sqlPrivilegeFunction);
             WriteTable(dtPrivilegeFunction);
         }
 
-        void LoadVariables()
+        private void LoadVariables()
         {
             WriteHead1("System Variables");
 
             string sqlShowVariables = "SHOW variables;";
 
-            DataTable dtVariables = QueryExpress.GetTable(cmd, sqlShowVariables);
+            DataTable dtVariables = QueryExpress.GetTable(_cmd, sqlShowVariables);
 
             WriteCodeBlock(sqlShowVariables);
             WriteTable(dtVariables);
         }
 
-        void LoadTables()
+        private void LoadTables()
         {
             WriteHead1("Tables");
 
@@ -220,7 +220,7 @@ ORDER BY  mf.Host,  mf.User,  mf.Db,  mf.Routine_name;";
 
             string sqlShowTableStatus = "SHOW TABLE STATUS;";
 
-            DataTable dtTableStatus = QueryExpress.GetTable(cmd, sqlShowTableStatus);
+            DataTable dtTableStatus = QueryExpress.GetTable(_cmd, sqlShowTableStatus);
 
             WriteCodeBlock(sqlShowTableStatus);
             WriteTable(dtTableStatus);
@@ -231,18 +231,18 @@ ORDER BY  mf.Host,  mf.User,  mf.Db,  mf.Routine_name;";
             dtTotalRows.Columns.Add("Table");
             dtTotalRows.Columns.Add("Total Rows");
 
-            foreach (MySqlTable table in myDatabase.Tables)
+            foreach (MySqlTable table in _myDatabase.Tables)
             {
                 dtTotalRows.Rows.Add(table.Name, table.TotalRows);
             }
 
             WriteTable(dtTotalRows);
 
-            foreach (MySqlTable table in myDatabase.Tables)
+            foreach (MySqlTable table in _myDatabase.Tables)
             {
                 WriteHead2(table.Name);
                 WriteCodeBlock(table.Columns.SqlShowFullColumns);
-                DataTable dtColumns = QueryExpress.GetTable(cmd, table.Columns.SqlShowFullColumns);
+                DataTable dtColumns = QueryExpress.GetTable(_cmd, table.Columns.SqlShowFullColumns);
                 WriteTable(dtColumns);
 
                 WriteText("Data Type in .NET Framework");
@@ -264,158 +264,158 @@ ORDER BY  mf.Host,  mf.User,  mf.Db,  mf.Routine_name;";
             }
         }
 
-        void LoadFunctions()
+        private void LoadFunctions()
         {
             WriteHead1("Functions");
 
-            WriteCodeBlock(myDatabase.Functions.SqlShowFunctions);
-            DataTable dtFunctionList = QueryExpress.GetTable(cmd, myDatabase.Functions.SqlShowFunctions);
+            WriteCodeBlock(_myDatabase.Functions.SqlShowFunctions);
+            DataTable dtFunctionList = QueryExpress.GetTable(_cmd, _myDatabase.Functions.SqlShowFunctions);
             WriteTable(dtFunctionList);
 
             WriteCodeBlock("SHOW CREATE FUNCTION `<name>`;");
 
-            if (!myDatabase.Functions.AllowAccess)
+            if (!_myDatabase.Functions.AllowAccess)
                 WriteAccessDeniedErrMsg();
 
-            foreach (MySqlFunction func in myDatabase.Functions)
+            foreach (MySqlFunction func in _myDatabase.Functions)
             {
                 WriteHead2(func.Name);
-                WriteCodeBlock(func.CreateFunctionSQLWithoutDefiner);
+                WriteCodeBlock(func.CreateFunctionSqlWithoutDefiner);
             }
         }
 
-        void LoadProcedures()
+        private void LoadProcedures()
         {
             WriteHead1("Procedures");
 
-            WriteCodeBlock(myDatabase.Procedures.SqlShowProcedures);
-            DataTable dtProcedureList = QueryExpress.GetTable(cmd, myDatabase.Procedures.SqlShowProcedures);
+            WriteCodeBlock(_myDatabase.Procedures.SqlShowProcedures);
+            DataTable dtProcedureList = QueryExpress.GetTable(_cmd, _myDatabase.Procedures.SqlShowProcedures);
             WriteTable(dtProcedureList);
 
             WriteCodeBlock("SHOW CREATE PROCEDURE `<name>`;");
 
-            if (!myDatabase.Procedures.AllowAccess)
+            if (!_myDatabase.Procedures.AllowAccess)
                 WriteAccessDeniedErrMsg();
 
-            foreach (MySqlProcedure proc in myDatabase.Procedures)
+            foreach (MySqlProcedure proc in _myDatabase.Procedures)
             {
                 WriteHead2(proc.Name);
-                WriteCodeBlock(proc.CreateProcedureSQLWithoutDefiner);
+                WriteCodeBlock(proc.CreateProcedureSqlWithoutDefiner);
             }
         }
 
-        void LoadTriggers()
+        private void LoadTriggers()
         {
             WriteHead1("Triggers");
 
-            WriteCodeBlock(myDatabase.Triggers.SqlShowTriggers);
-            DataTable dtTriggerList = QueryExpress.GetTable(cmd, myDatabase.Triggers.SqlShowTriggers);
+            WriteCodeBlock(_myDatabase.Triggers.SqlShowTriggers);
+            DataTable dtTriggerList = QueryExpress.GetTable(_cmd, _myDatabase.Triggers.SqlShowTriggers);
             WriteTable(dtTriggerList);
 
             WriteCodeBlock("SHOW CREATE TRIGGER `<name>`;");
 
-            if (!myDatabase.Triggers.AllowAccess)
+            if (!_myDatabase.Triggers.AllowAccess)
                 WriteAccessDeniedErrMsg();
 
-            foreach (MySqlTrigger trigger in myDatabase.Triggers)
+            foreach (MySqlTrigger trigger in _myDatabase.Triggers)
             {
                 WriteHead2(trigger.Name);
-                WriteCodeBlock(trigger.CreateTriggerSQL);
+                WriteCodeBlock(trigger.CreateTriggerSql);
             }
         }
 
-        void LoadViews()
+        private void LoadViews()
         {
             WriteHead1("Views");
 
-            WriteCodeBlock(myDatabase.Views.SqlShowViewList);
-            DataTable dtViewList = QueryExpress.GetTable(cmd, myDatabase.Views.SqlShowViewList);
+            WriteCodeBlock(_myDatabase.Views.SqlShowViewList);
+            DataTable dtViewList = QueryExpress.GetTable(_cmd, _myDatabase.Views.SqlShowViewList);
             WriteTable(dtViewList);
 
             WriteCodeBlock("SHOW CREATE VIEW `<name>`;");
 
-            if (!myDatabase.Views.AllowAccess)
+            if (!_myDatabase.Views.AllowAccess)
                 WriteAccessDeniedErrMsg();
 
-            foreach (MySqlView myview in myDatabase.Views)
+            foreach (MySqlView myview in _myDatabase.Views)
             {
                 WriteHead2(myview.Name);
-                WriteCodeBlock(myview.CreateViewSQL);
+                WriteCodeBlock(myview.CreateViewSql);
             }
         }
 
-        void LoadEvents()
+        private void LoadEvents()
         {
             WriteHead1("Events");
 
-            WriteCodeBlock(myDatabase.Events.SqlShowEvent);
-            DataTable dtEventList = QueryExpress.GetTable(cmd, myDatabase.Events.SqlShowEvent);
+            WriteCodeBlock(_myDatabase.Events.SqlShowEvent);
+            DataTable dtEventList = QueryExpress.GetTable(_cmd, _myDatabase.Events.SqlShowEvent);
             WriteTable(dtEventList);
 
             WriteCodeBlock("SHOW CREATE EVENT `<name>`;");
 
-            if (!myDatabase.Events.AllowAccess)
+            if (!_myDatabase.Events.AllowAccess)
                 WriteAccessDeniedErrMsg();
 
-            foreach (MySqlEvent myevent in myDatabase.Events)
+            foreach (MySqlEvent myevent in _myDatabase.Events)
             {
                 WriteHead2(myevent.Name);
                 WriteCodeBlock(myevent.CreateEventSql);
             }
         }
 
-        void WriteHead1(string text)
+        private void WriteHead1(string text)
         {
-            sb.Append("<h1>");
-            sb.Append(GetHtmlString(text.Trim()));
-            sb.AppendLine("</h1>");
-            sb.AppendLine("<hr />");
+            _sb.Append("<h1>");
+            _sb.Append(GetHtmlString(text.Trim()));
+            _sb.AppendLine("</h1>");
+            _sb.AppendLine("<hr />");
         }
 
-        void WriteHead2(string text)
+        private void WriteHead2(string text)
         {
-            sb.Append("<h2>");
-            sb.Append(GetHtmlString(text.Trim()));
-            sb.AppendLine("</h2>");
+            _sb.Append("<h2>");
+            _sb.Append(GetHtmlString(text.Trim()));
+            _sb.AppendLine("</h2>");
         }
 
-        void WriteText(string text)
+        private void WriteText(string text)
         {
-            sb.AppendLine("<p>");
-            sb.AppendLine(GetHtmlString(text.Trim()));
-            sb.AppendLine("</p>");
+            _sb.AppendLine("<p>");
+            _sb.AppendLine(GetHtmlString(text.Trim()));
+            _sb.AppendLine("</p>");
         }
 
-        void WriteCodeBlock(string text)
+        private void WriteCodeBlock(string text)
         {
-            sb.AppendLine("<span class=\"code\">");
-            sb.AppendLine(GetHtmlString(text.Trim()));
-            sb.AppendLine("</span>");
-            sb.AppendLine("<br /><br />");
+            _sb.AppendLine("<span class=\"code\">");
+            _sb.AppendLine(GetHtmlString(text.Trim()));
+            _sb.AppendLine("</span>");
+            _sb.AppendLine("<br /><br />");
         }
 
-        void WriteTable(DataTable dt)
+        private void WriteTable(DataTable dt)
         {
-            sb.AppendFormat(HtmlExpress.ConvertDataTableToHtmlTable(dt));
-            sb.AppendLine("<br />");
+            _sb.AppendFormat(HtmlExpress.ConvertDataTableToHtmlTable(dt));
+            _sb.AppendLine("<br />");
         }
 
-        void WriteAccessDeniedErrMsg()
+        private void WriteAccessDeniedErrMsg()
         {
-            WriteError("Access denied for user " + myServer.CurrentUserClientHost);
+            WriteError("Access denied for user " + _myServer.CurrentUserClientHost);
         }
 
-        void WriteError(string errMsg)
+        private void WriteError(string errMsg)
         {
-            sb.AppendLine("<br />");
-            sb.AppendLine("<div style=\"background-color: #FFE8E8; padding: 5px; border: 1px solid #FF0000;\">");
-            sb.AppendLine("Error or Exception occured. Error message:<br />");
-            sb.AppendLine(GetHtmlString(errMsg));
-            sb.AppendLine("</div>");
-            sb.AppendLine("<br />");
+            _sb.AppendLine("<br />");
+            _sb.AppendLine("<div style=\"background-color: #FFE8E8; padding: 5px; border: 1px solid #FF0000;\">");
+            _sb.AppendLine("Error or Exception occured. Error message:<br />");
+            _sb.AppendLine(GetHtmlString(errMsg));
+            _sb.AppendLine("</div>");
+            _sb.AppendLine("<br />");
         }
 
-        string GetHtmlString(string input)
+        private string GetHtmlString(string input)
         {
             input = input.Replace("\r\n", "^||||^").Replace("\n", "^||||^").Replace("\r", "^||||^");
             System.Text.StringBuilder sb2 = new System.Text.StringBuilder();
@@ -448,21 +448,21 @@ ORDER BY  mf.Host,  mf.User,  mf.Db,  mf.Routine_name;";
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            timer1.Stop();
+            _timer1.Stop();
             webBrowser1.DocumentText = "<h1>Database info is loading...<br />Please wait...</h1>";
-            bw.RunWorkerAsync();
+            _bw.RunWorkerAsync();
         }
 
         private void FormDatabaseInfo_Load(object sender, EventArgs e)
         {
-            timer1.Start();
+            _timer1.Start();
         }
 
         private void btExport_Click(object sender, EventArgs e)
         {
             SaveFileDialog sf = new SaveFileDialog();
             sf.Filter = "HTML|*.html";
-            sf.FileName = myDatabase.Name + ".html";
+            sf.FileName = _myDatabase.Name + ".html";
             if (DialogResult.OK == sf.ShowDialog())
             {
                 System.IO.File.WriteAllText(sf.FileName, webBrowser1.DocumentText);
@@ -471,7 +471,7 @@ ORDER BY  mf.Host,  mf.User,  mf.Db,  mf.Routine_name;";
 
         private void btRefresh_Click(object sender, EventArgs e)
         {
-            timer1.Start();
+            _timer1.Start();
         }
 
         private void btPrint_Click(object sender, EventArgs e)

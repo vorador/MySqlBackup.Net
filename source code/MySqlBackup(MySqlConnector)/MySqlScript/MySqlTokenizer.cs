@@ -28,103 +28,50 @@ using System.Diagnostics;
 
 namespace MySqlConnector
 {
-    class MySqlTokenizer
+    internal class MySqlTokenizer
     {
-        private string sql;
-
-        private int startIndex;
-        private int stopIndex;
-
-        private bool ansiQuotes;
-        private bool backslashEscapes;
-        private bool returnComments;
-        private bool multiLine;
-        private bool sqlServerMode;
-
-        private bool quoted;
-        private bool isComment;
-
-        private int pos;
+        private string _sql;
 
         public MySqlTokenizer()
         {
-            backslashEscapes = true;
-            multiLine = true;
-            pos = 0;
+            BackslashEscapes = true;
+            MultiLine = true;
+            Position = 0;
         }
 
         public MySqlTokenizer(string input)
           : this()
         {
-            sql = input;
+            _sql = input;
         }
 
         #region Properties
 
         public string Text
         {
-            get { return sql; }
-            set { sql = value; pos = 0; }
+            get { return _sql; }
+            set { _sql = value; Position = 0; }
         }
 
-        public bool AnsiQuotes
-        {
-            get { return ansiQuotes; }
-            set { ansiQuotes = value; }
-        }
+        public bool AnsiQuotes { get; set; }
 
-        public bool BackslashEscapes
-        {
-            get { return backslashEscapes; }
-            set { backslashEscapes = value; }
-        }
+        public bool BackslashEscapes { get; set; }
 
-        public bool MultiLine
-        {
-            get { return multiLine; }
-            set { multiLine = value; }
-        }
+        public bool MultiLine { get; set; }
 
-        public bool SqlServerMode
-        {
-            get { return sqlServerMode; }
-            set { sqlServerMode = value; }
-        }
+        public bool SqlServerMode { get; set; }
 
-        public bool Quoted
-        {
-            get { return quoted; }
-            private set { quoted = value; }
-        }
+        public bool Quoted { get; private set; }
 
-        public bool IsComment
-        {
-            get { return isComment; }
-        }
+        public bool IsComment { get; private set; }
 
-        public int StartIndex
-        {
-            get { return startIndex; }
-            set { startIndex = value; }
-        }
+        public int StartIndex { get; set; }
 
-        public int StopIndex
-        {
-            get { return stopIndex; }
-            set { stopIndex = value; }
-        }
+        public int StopIndex { get; set; }
 
-        public int Position
-        {
-            get { return pos; }
-            set { pos = value; }
-        }
+        public int Position { get; set; }
 
-        public bool ReturnComments
-        {
-            get { return returnComments; }
-            set { returnComments = value; }
-        }
+        public bool ReturnComments { get; set; }
 
         #endregion
 
@@ -144,7 +91,7 @@ namespace MySqlConnector
         {
             while (FindToken())
             {
-                string token = sql.Substring(startIndex, stopIndex - startIndex);
+                string token = _sql.Substring(StartIndex, StopIndex - StartIndex);
                 return token;
             }
             return null;
@@ -162,24 +109,24 @@ namespace MySqlConnector
         {
             while (FindToken())
             {
-                if ((stopIndex - startIndex) < 2) continue;
-                char c1 = sql[startIndex];
-                char c2 = sql[startIndex + 1];
+                if ((StopIndex - StartIndex) < 2) continue;
+                char c1 = _sql[StartIndex];
+                char c2 = _sql[StartIndex + 1];
                 if (c1 == '?' ||
                     (c1 == '@' && c2 != '@'))
-                    return sql.Substring(startIndex, stopIndex - startIndex);
+                    return _sql.Substring(StartIndex, StopIndex - StartIndex);
             }
             return null;
         }
 
         public bool FindToken()
         {
-            isComment = quoted = false;  // reset our flags
-            startIndex = stopIndex = -1;
+            IsComment = Quoted = false;  // reset our flags
+            StartIndex = StopIndex = -1;
 
-            while (pos < sql.Length)
+            while (Position < _sql.Length)
             {
-                char c = sql[pos++];
+                char c = _sql[Position++];
                 if (Char.IsWhiteSpace(c)) continue;
 
                 if (c == '`' || c == '\'' || c == '"' || (c == '[' && SqlServerMode))
@@ -191,7 +138,7 @@ namespace MySqlConnector
                 }
                 else
                     ReadUnquotedToken();
-                if (startIndex != -1) return true;
+                if (StartIndex != -1) return true;
             }
             return false;
         }
@@ -215,66 +162,66 @@ namespace MySqlConnector
         private bool ReadComment(char c)
         {
             // make sure the comment starts correctly
-            if (c == '/' && (pos >= sql.Length || sql[pos] != '*')) return false;
-            if (c == '-' && ((pos + 1) >= sql.Length || sql[pos] != '-' || sql[pos + 1] != ' ')) return false;
+            if (c == '/' && (Position >= _sql.Length || _sql[Position] != '*')) return false;
+            if (c == '-' && ((Position + 1) >= _sql.Length || _sql[Position] != '-' || _sql[Position + 1] != ' ')) return false;
 
             string endingPattern = "\n";
-            if (sql[pos] == '*')
+            if (_sql[Position] == '*')
                 endingPattern = "*/";
 
-            int startingIndex = pos - 1;
+            int startingIndex = Position - 1;
 
-            int index = sql.IndexOf(endingPattern, pos);
+            int index = _sql.IndexOf(endingPattern, Position);
             if (endingPattern == "\n")
-                index = sql.IndexOf('\n', pos);
+                index = _sql.IndexOf('\n', Position);
             if (index == -1)
-                index = sql.Length - 1;
+                index = _sql.Length - 1;
             else
                 index += endingPattern.Length;
 
-            pos = index;
+            Position = index;
             if (ReturnComments)
             {
-                startIndex = startingIndex;
-                stopIndex = index;
-                isComment = true;
+                StartIndex = startingIndex;
+                StopIndex = index;
+                IsComment = true;
             }
             return true;
         }
 
         private void CalculatePosition(int start, int stop)
         {
-            startIndex = start;
-            stopIndex = stop;
+            StartIndex = start;
+            StopIndex = stop;
             if (!MultiLine) return;
         }
 
         private void ReadUnquotedToken()
         {
-            startIndex = pos - 1;
+            StartIndex = Position - 1;
 
-            if (!IsSpecialCharacter(sql[startIndex]))
+            if (!IsSpecialCharacter(_sql[StartIndex]))
             {
-                while (pos < sql.Length)
+                while (Position < _sql.Length)
                 {
-                    char c = sql[pos];
+                    char c = _sql[Position];
                     if (Char.IsWhiteSpace(c)) break;
                     if (IsSpecialCharacter(c)) break;
-                    pos++;
+                    Position++;
                 }
             }
 
             Quoted = false;
-            stopIndex = pos;
+            StopIndex = Position;
         }
 
         private void ReadSpecialToken()
         {
-            startIndex = pos - 1;
+            StartIndex = Position - 1;
 
-            Debug.Assert(IsSpecialCharacter(sql[startIndex]));
+            Debug.Assert(IsSpecialCharacter(_sql[StartIndex]));
 
-            stopIndex = pos;
+            StopIndex = Position;
             Quoted = false;
         }
 
@@ -287,13 +234,13 @@ namespace MySqlConnector
         {
             if (quoteChar == '[')
                 quoteChar = ']';
-            startIndex = pos - 1;
+            StartIndex = Position - 1;
             bool escaped = false;
 
             bool found = false;
-            while (pos < sql.Length)
+            while (Position < _sql.Length)
             {
-                char c = sql[pos];
+                char c = _sql[Position];
 
                 if (c == quoteChar && !escaped)
                 {
@@ -305,11 +252,11 @@ namespace MySqlConnector
                     escaped = false;
                 else if (c == '\\' && BackslashEscapes)
                     escaped = true;
-                pos++;
+                Position++;
             }
-            if (found) pos++;
+            if (found) Position++;
             Quoted = found;
-            stopIndex = pos;
+            StopIndex = Position;
         }
 
         private bool IsQuoteChar(char c)

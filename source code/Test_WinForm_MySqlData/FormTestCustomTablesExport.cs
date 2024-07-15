@@ -18,7 +18,7 @@ namespace MySqlBackupTestApp
             dataGridView1.CellClick += dataGridView1_CellClick;
         }
 
-        void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e)
+        private void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.ColumnIndex == colnSelect.Index && e.RowIndex > -1)
             {
@@ -32,7 +32,7 @@ namespace MySqlBackupTestApp
             LoadData();
         }
 
-        void LoadData()
+        private void LoadData()
         {
 
             DataTable dt = null;

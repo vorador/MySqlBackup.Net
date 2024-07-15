@@ -48,7 +48,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void DecryptSqlDumpFile(string originalFile, string newFile, string encryptionKey)
+        private void DecryptSqlDumpFile(string originalFile, string newFile, string encryptionKey)
         {
             encryptionKey = Sha2Hash(encryptionKey);
             int saltSize = GetSaltSize(encryptionKey);
@@ -56,9 +56,9 @@ namespace MySqlBackupTestApp
             if (!File.Exists(originalFile))
                 throw new Exception("Original file is not exists.");
 
-            UTF8Encoding utf8WithoutBOM = new UTF8Encoding(false);
+            UTF8Encoding utf8WithoutBom = new UTF8Encoding(false);
 
-            using (TextReader textReader = new StreamReader(originalFile, utf8WithoutBOM))
+            using (TextReader textReader = new StreamReader(originalFile, utf8WithoutBom))
             {
                 if (File.Exists(newFile))
                 {
@@ -67,7 +67,7 @@ namespace MySqlBackupTestApp
 
                 string line = string.Empty;
 
-                using (TextWriter textWriter = new StreamWriter(newFile, false, utf8WithoutBOM))
+                using (TextWriter textWriter = new StreamWriter(newFile, false, utf8WithoutBom))
                 {
                     while (line != null)
                     {
@@ -84,20 +84,20 @@ namespace MySqlBackupTestApp
             }
         }
 
-        string Sha2Hash(string input)
+        private string Sha2Hash(string input)
         {
             byte[] ba = Encoding.UTF8.GetBytes(input);
             return Sha2Hash(ba);
         }
 
-        string Sha2Hash(byte[] ba)
+        private string Sha2Hash(byte[] ba)
         {
             SHA256Managed sha2 = new SHA256Managed();
             byte[] ba2 = sha2.ComputeHash(ba);
             return BitConverter.ToString(ba2).Replace("-", string.Empty).ToLower();
         }
 
-        int GetSaltSize(string key)
+        private int GetSaltSize(string key)
         {
             int a = key.GetHashCode();
             string b = Convert.ToString(a);
@@ -111,7 +111,7 @@ namespace MySqlBackupTestApp
             return c;
         }
 
-        string DecryptWithSalt(string input, string key, int saltSize)
+        private string DecryptWithSalt(string input, string key, int saltSize)
         {
             try
             {
@@ -125,7 +125,7 @@ namespace MySqlBackupTestApp
             }
         }
 
-        string AES_Decrypt(string input, string password)
+        private string AES_Decrypt(string input, string password)
         {
             byte[] cipherBytes = Convert.FromBase64String(input);
             PasswordDeriveBytes pdb = new PasswordDeriveBytes(password,
@@ -135,13 +135,13 @@ namespace MySqlBackupTestApp
             return System.Text.Encoding.UTF8.GetString(decryptedData);
         }
 
-        byte[] AES_Decrypt(byte[] cipherData, byte[] Key, byte[] IV)
+        private byte[] AES_Decrypt(byte[] cipherData, byte[] key, byte[] iv)
         {
             using (MemoryStream ms = new MemoryStream())
             {
                 Rijndael alg = Rijndael.Create();
-                alg.Key = Key;
-                alg.IV = IV;
+                alg.Key = key;
+                alg.IV = iv;
                 using (CryptoStream cs = new CryptoStream(ms, alg.CreateDecryptor(), CryptoStreamMode.Write))
                 {
                     cs.Write(cipherData, 0, cipherData.Length);

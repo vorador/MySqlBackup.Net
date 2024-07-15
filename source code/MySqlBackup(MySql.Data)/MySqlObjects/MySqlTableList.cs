@@ -7,18 +7,17 @@ namespace MySql.Data.MySqlClient
 {
     public class MySqlTableList : IDisposable, IEnumerable<MySqlTable>
     {
-        string _sqlShowFullTables = string.Empty;
-        Dictionary<string, MySqlTable> _lst = new Dictionary<string, MySqlTable>();
+        private Dictionary<string, MySqlTable> _lst = new();
 
-        public string SqlShowFullTables { get { return _sqlShowFullTables; } }
+        public string SqlShowFullTables { get; } = string.Empty;
 
         public MySqlTableList()
         { }
 
         public MySqlTableList(MySqlCommand cmd)
         {
-            _sqlShowFullTables = "SHOW FULL TABLES WHERE Table_type = 'BASE TABLE';";
-            DataTable dtTableList = QueryExpress.GetTable(cmd, _sqlShowFullTables);
+            SqlShowFullTables = "SHOW FULL TABLES WHERE Table_type = 'BASE TABLE';";
+            DataTable dtTableList = QueryExpress.GetTable(cmd, SqlShowFullTables);
 
             foreach (DataRow dr in dtTableList.Rows)
             {

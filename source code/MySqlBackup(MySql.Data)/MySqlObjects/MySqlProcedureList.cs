@@ -7,13 +7,11 @@ namespace MySql.Data.MySqlClient
 {
     public class MySqlProcedureList : IDisposable, IEnumerable<MySqlProcedure>
     {
-        string _sqlShowProcedures = string.Empty;
-        Dictionary<string, MySqlProcedure> _lst = new Dictionary<string, MySqlProcedure>();
+        private Dictionary<string, MySqlProcedure> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowProcedures { get { return _sqlShowProcedures; } }
+        public string SqlShowProcedures { get; } = string.Empty;
 
         public MySqlProcedureList()
         { }
@@ -23,8 +21,8 @@ namespace MySql.Data.MySqlClient
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowProcedures = string.Format("SHOW PROCEDURE STATUS WHERE UPPER(TRIM(Db))= UPPER(TRIM('{0}'));", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowProcedures);
+                SqlShowProcedures = string.Format("SHOW PROCEDURE STATUS WHERE UPPER(TRIM(Db))= UPPER(TRIM('{0}'));", dbname);
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowProcedures);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,7 +33,7 @@ namespace MySql.Data.MySqlClient
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
+                    AllowAccess = false;
             }
             catch
             {

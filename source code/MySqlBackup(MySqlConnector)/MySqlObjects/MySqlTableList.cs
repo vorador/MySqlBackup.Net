@@ -7,18 +7,17 @@ namespace MySqlConnector
 {
     public class MySqlTableList : IDisposable, IEnumerable<MySqlTable>
     {
-        string _sqlShowFullTables = string.Empty;
-        Dictionary<string, MySqlTable> _lst = new Dictionary<string, MySqlTable>();
+        private Dictionary<string, MySqlTable> _lst = new();
 
-        public string SqlShowFullTables { get { return _sqlShowFullTables; } }
+        public string SqlShowFullTables { get; } = string.Empty;
 
         public MySqlTableList()
         { }
 
         public MySqlTableList(MySqlCommand cmd)
         {
-            _sqlShowFullTables = "SHOW FULL TABLES WHERE Table_type = 'BASE TABLE';";
-            DataTable dtTableList = QueryExpress.GetTable(cmd, _sqlShowFullTables);
+            SqlShowFullTables = "SHOW FULL TABLES WHERE Table_type = 'BASE TABLE';";
+            DataTable dtTableList = QueryExpress.GetTable(cmd, SqlShowFullTables);
 
             foreach (DataRow dr in dtTableList.Rows)
             {
@@ -31,20 +30,14 @@ namespace MySqlConnector
         {
             get
             {
-                if (_lst.ContainsKey(tableName))
-                    return _lst[tableName];
+                if (_lst.TryGetValue(tableName, out MySqlTable table))
+                    return table;
 
                 throw new Exception("Table \"" + tableName + "\" is not existed.");
             }
         }
 
-        public int Count
-        {
-            get
-            {
-                return _lst.Count;
-            }
-        }
+        public int Count => _lst.Count;
 
         public IEnumerator<MySqlTable> GetEnumerator() =>
             _lst.Values.GetEnumerator();
@@ -54,7 +47,7 @@ namespace MySqlConnector
 
         public void Dispose()
         {
-            foreach(var key in _lst.Keys)
+            foreach(string key in _lst.Keys)
             {
                 _lst[key].Dispose();
                 _lst[key] = null;

@@ -7,13 +7,11 @@ namespace MySql.Data.MySqlClient
 {
     public class MySqlViewList : IDisposable, IEnumerable<MySqlView>
     {
-        string _sqlShowViewList = string.Empty;
-        Dictionary<string, MySqlView> _lst = new Dictionary<string, MySqlView>();
+        private Dictionary<string, MySqlView> _lst = new();
 
-        bool _allowAccess = true;
-        public bool AllowAccess { get { return _allowAccess; } }
+        public bool AllowAccess { get; } = true;
 
-        public string SqlShowViewList { get { return _sqlShowViewList; } }
+        public string SqlShowViewList { get; } = string.Empty;
 
         public MySqlViewList()
         { }
@@ -23,8 +21,8 @@ namespace MySql.Data.MySqlClient
             try
             {
                 string dbname = QueryExpress.ExecuteScalarStr(cmd, "SELECT DATABASE();");
-                _sqlShowViewList = string.Format("SHOW FULL TABLES FROM `{0}` WHERE Table_type = 'VIEW';", dbname);
-                DataTable dt = QueryExpress.GetTable(cmd, _sqlShowViewList);
+                SqlShowViewList = string.Format("SHOW FULL TABLES FROM `{0}` WHERE Table_type = 'VIEW';", dbname);
+                DataTable dt = QueryExpress.GetTable(cmd, SqlShowViewList);
 
                 foreach (DataRow dr in dt.Rows)
                 {
@@ -35,7 +33,7 @@ namespace MySql.Data.MySqlClient
             catch (MySqlException myEx)
             {
                 if (myEx.Message.ToLower().Contains("access denied"))
-                    _allowAccess = false;
+                    AllowAccess = false;
             }
             catch
             {

@@ -6,54 +6,45 @@ namespace Devart.Data.MySql
 {
     public class MySqlServer
     {
-        string _versionNumber;
-        string _edition;
-        decimal _majorVersionNumber = 0;
-        string _characterSetServer = string.Empty;
-        string _characterSetSystem = string.Empty;
-        string _characterSetConnection = string.Empty;
-        string _characterSetDatabase = string.Empty;
-        string _currentUser = string.Empty;
-        string _currentUserClientHost = string.Empty;
-        string _currentClientHost = string.Empty;
+        private decimal _majorVersionNumber = 0;
 
-        public string Version { get { return string.Format("{0} {1}", _versionNumber, _edition); } }
-        public string VersionNumber { get { return _versionNumber; } }
+        public string Version { get { return string.Format("{0} {1}", VersionNumber, Edition); } }
+        public string VersionNumber { get; private set; }
         public decimal MajorVersionNumber { get { return _majorVersionNumber; } }
-        public string Edition { get { return _edition; } }
-        public string CharacterSetServer { get { return _characterSetServer; } }
-        public string CharacterSetSystem { get { return _characterSetSystem; } }
-        public string CharacterSetConnection { get { return _characterSetConnection; } }
-        public string CharacterSetDatabase { get { return _characterSetDatabase; } }
-        public string CurrentUser { get { return _currentUser; } }
-        public string CurrentUserClientHost { get { return _currentUserClientHost; } }
-        public string CurrentClientHost { get { return _currentClientHost; } }
+        public string Edition { get; private set; }
+        public string CharacterSetServer { get; private set; } = string.Empty;
+        public string CharacterSetSystem { get; private set; } = string.Empty;
+        public string CharacterSetConnection { get; private set; } = string.Empty;
+        public string CharacterSetDatabase { get; private set; } = string.Empty;
+        public string CurrentUser { get; private set; } = string.Empty;
+        public string CurrentUserClientHost { get; private set; } = string.Empty;
+        public string CurrentClientHost { get; private set; } = string.Empty;
 
         public MySqlServer()
         { }
 
         public void GetServerInfo(MySqlCommand cmd)
         {
-            _edition = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'version_comment';", 1);
-            _versionNumber = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'version';", 1);
-            _characterSetServer = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_server';", 1);
-            _characterSetSystem = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_system';", 1);
-            _characterSetConnection = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_connection';", 1);
-            _characterSetDatabase = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_database';", 1);
+            Edition = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'version_comment';", 1);
+            VersionNumber = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'version';", 1);
+            CharacterSetServer = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_server';", 1);
+            CharacterSetSystem = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_system';", 1);
+            CharacterSetConnection = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_connection';", 1);
+            CharacterSetDatabase = QueryExpress.ExecuteScalarStr(cmd, "SHOW variables LIKE 'character_set_database';", 1);
 
-            _currentUserClientHost = QueryExpress.ExecuteScalarStr(cmd, "SELECT current_user;");
+            CurrentUserClientHost = QueryExpress.ExecuteScalarStr(cmd, "SELECT current_user;");
 
-            string[] ca = _currentUserClientHost.Split('@');
+            string[] ca = CurrentUserClientHost.Split('@');
 
-            _currentUser = ca[0];
-            _currentClientHost = ca[1];
+            CurrentUser = ca[0];
+            CurrentClientHost = ca[1];
 
             GetMajorVersionNumber();
         }
 
-        void GetMajorVersionNumber()
+        private void GetMajorVersionNumber()
         {
-            string[] vsa = _versionNumber.Split('.');
+            string[] vsa = VersionNumber.Split('.');
             string v = string.Empty;
             if (vsa.Length > 1)
                 v = vsa[0] + "." + vsa[1];

@@ -48,7 +48,7 @@ namespace MySqlBackupASPNET
             }
         }
 
-        protected void btImport(object sender, EventArgs e)
+        protected void BtImport(object sender, EventArgs e)
         {
             try
             {

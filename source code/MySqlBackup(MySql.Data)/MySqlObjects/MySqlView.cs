@@ -2,30 +2,26 @@
 {
     public class MySqlView
     {
-        string _name = string.Empty;
-        string _createViewSQL = string.Empty;
-        string _createViewSQLWithoutDefiner = string.Empty;
-
-        public string Name { get { return _name; } }
-        public string CreateViewSQL { get { return _createViewSQL; } }
-        public string CreateViewSQLWithoutDefiner { get { return _createViewSQLWithoutDefiner; } }
+        public string Name { get; } = string.Empty;
+        public string CreateViewSql { get; } = string.Empty;
+        public string CreateViewSqlWithoutDefiner { get; } = string.Empty;
 
         public MySqlView(MySqlCommand cmd, string viewName)
         {
-            _name = viewName;
+            Name = viewName;
 
             string sqlShowCreate = string.Format("SHOW CREATE VIEW `{0}`;", viewName);
 
             System.Data.DataTable dtView = QueryExpress.GetTable(cmd, sqlShowCreate);
 
-            _createViewSQL = dtView.Rows[0]["Create View"] + ";";
+            CreateViewSql = dtView.Rows[0]["Create View"] + ";";
 
-            _createViewSQL = _createViewSQL.Replace("\r\n", "^~~~~~~~~~~~~~~^");
-            _createViewSQL = _createViewSQL.Replace("\n", "^~~~~~~~~~~~~~~^");
-            _createViewSQL = _createViewSQL.Replace("\r", "^~~~~~~~~~~~~~~^");
-            _createViewSQL = _createViewSQL.Replace("^~~~~~~~~~~~~~~^", "\r\n");
+            CreateViewSql = CreateViewSql.Replace("\r\n", "^~~~~~~~~~~~~~~^");
+            CreateViewSql = CreateViewSql.Replace("\n", "^~~~~~~~~~~~~~~^");
+            CreateViewSql = CreateViewSql.Replace("\r", "^~~~~~~~~~~~~~~^");
+            CreateViewSql = CreateViewSql.Replace("^~~~~~~~~~~~~~~^", "\r\n");
 
-            _createViewSQLWithoutDefiner = QueryExpress.EraseDefiner(_createViewSQL);
+            CreateViewSqlWithoutDefiner = QueryExpress.EraseDefiner(CreateViewSql);
         }
     }
 }

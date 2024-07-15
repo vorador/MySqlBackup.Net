@@ -8,21 +8,17 @@ namespace MySql.Data.MySqlClient
 {
     public class QueryExpress
     {
-        static NumberFormatInfo _numberFormatInfo = new NumberFormatInfo()
+        public static NumberFormatInfo MySqlNumberFormat { get; } = new()
         {
             NumberDecimalSeparator = ".",
             NumberGroupSeparator = string.Empty
         };
 
-        static DateTimeFormatInfo _dateFormatInfo = new DateTimeFormatInfo()
+        public static DateTimeFormatInfo MySqlDateTimeFormat { get; } = new()
         {
             DateSeparator = "-",
             TimeSeparator = ":"
         };
-
-        public static NumberFormatInfo MySqlNumberFormat { get { return _numberFormatInfo; } }
-
-        public static DateTimeFormatInfo MySqlDateTimeFormat { get { return _dateFormatInfo; } }
 
         public static DataTable GetTable(MySqlCommand cmd, string sql)
         {
@@ -85,7 +81,7 @@ namespace MySql.Data.MySqlClient
             return builder.ToString();
         }
 
-        static void escape_string(StringBuilder sb, char c)
+        private static void escape_string(StringBuilder sb, char c)
         {
             switch (c)
             {
@@ -137,7 +133,7 @@ namespace MySql.Data.MySqlClient
             sb.AppendFormat(definer);
 
             bool pointAliasReached = false;
-            bool point3rdQuoteReached = false;
+            bool point3RdQuoteReached = false;
 
             for (int i = dIndex + definer.Length; i < input.Length; i++)
             {
@@ -150,10 +146,10 @@ namespace MySql.Data.MySqlClient
                     continue;
                 }
 
-                if (!point3rdQuoteReached)
+                if (!point3RdQuoteReached)
                 {
                     if (input[i] == '`')
-                        point3rdQuoteReached = true;
+                        point3RdQuoteReached = true;
 
                     sb.Append(input[i]);
                     continue;
@@ -234,47 +230,47 @@ namespace MySql.Data.MySqlClient
             }
             else if (ob is short)
             {
-                sb.AppendFormat(((short)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((short)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is int)
             {
-                sb.AppendFormat(((int)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((int)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is long)
             {
-                sb.AppendFormat(((long)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((long)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is ushort)
             {
-                sb.AppendFormat(((ushort)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((ushort)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is uint)
             {
-                sb.AppendFormat(((uint)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((uint)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is ulong)
             {
-                sb.AppendFormat(((ulong)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((ulong)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is double)
             {
-                sb.AppendFormat(((double)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((double)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is decimal)
             {
-                sb.AppendFormat(((decimal)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((decimal)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is float)
             {
-                sb.AppendFormat(((float)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((float)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is byte)
             {
-                sb.AppendFormat(((byte)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((byte)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is sbyte)
             {
-                sb.AppendFormat(((sbyte)ob).ToString(_numberFormatInfo));
+                sb.AppendFormat(((sbyte)ob).ToString(MySqlNumberFormat));
             }
             else if (ob is TimeSpan)
             {
@@ -298,13 +294,13 @@ namespace MySql.Data.MySqlClient
                 if (wrapStringWithSingleQuote)
                     sb.AppendFormat("'");
 
-                sb.AppendFormat(((DateTime)ob).ToString("yyyy-MM-dd HH:mm:ss", _dateFormatInfo));
+                sb.AppendFormat(((DateTime)ob).ToString("yyyy-MM-dd HH:mm:ss", MySqlDateTimeFormat));
 
                 if (col.TimeFractionLength > 0)
                 {
                     sb.Append(".");
-                    string _microsecond = ((DateTime)ob).ToString("".PadLeft(col.TimeFractionLength, 'f'));
-                    sb.Append(_microsecond);
+                    string microsecond = ((DateTime)ob).ToString("".PadLeft(col.TimeFractionLength, 'f'));
+                    sb.Append(microsecond);
                 }
 
                 if (wrapStringWithSingleQuote)
@@ -328,14 +324,14 @@ namespace MySql.Data.MySqlClient
                             sb.AppendFormat("'");
 
                         if (col.MySqlDataType == "datetime")
-                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", _dateFormatInfo));
+                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", MySqlDateTimeFormat));
                         else if (col.MySqlDataType == "date")
-                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd", _dateFormatInfo));
+                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd", MySqlDateTimeFormat));
                         else if (col.MySqlDataType == "time")
                             sb.AppendFormat("{0}:{1}:{2}", mdt.Hour, mdt.Minute, mdt.Second);
                         //sb.AppendFormat(dtime.ToString("HH:mm:ss", _dateFormatInfo));
                         else
-                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", _dateFormatInfo));
+                            sb.AppendFormat(dtime.ToString("yyyy-MM-dd HH:mm:ss", MySqlDateTimeFormat));
 
                         if (col.TimeFractionLength > 0)
                         {

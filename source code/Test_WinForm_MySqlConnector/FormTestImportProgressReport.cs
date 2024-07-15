@@ -7,40 +7,40 @@ namespace MySqlBackupTestApp
 {
     public partial class FormTestImportProgressReport : Form
     {
-        MySqlConnection conn;
-        MySqlCommand cmd;
-        MySqlBackup mb;
-        Timer timer1;
-        BackgroundWorker bwImport;
+        private MySqlConnection _conn;
+        private MySqlCommand _cmd;
+        private readonly MySqlBackup _mb;
+        private readonly Timer _timer1;
+        private readonly BackgroundWorker _bwImport;
 
-        int curBytes;
-        int totalBytes;
+        private int _curBytes;
+        private int _totalBytes;
 
-        bool cancel = false;
+        private bool _cancel = false;
 
-        DateTime timeStart = DateTime.MinValue;
-        DateTime timeEnd = DateTime.MinValue;
+        private DateTime _timeStart = DateTime.MinValue;
+        private DateTime _timeEnd = DateTime.MinValue;
 
         public FormTestImportProgressReport()
         {
             InitializeComponent();
 
-            mb = new MySqlBackup();
-            mb.ImportInfo.IntervalForProgressReport = (int)nmImInterval.Value;
-            mb.ImportProgressChanged += mb_ImportProgressChanged;
+            _mb = new MySqlBackup();
+            _mb.ImportInfo.IntervalForProgressReport = (int)nmImInterval.Value;
+            _mb.ImportProgressChanged += mb_ImportProgressChanged;
 
-            timer1 = new Timer();
-            timer1.Interval = 50;
-            timer1.Tick += timer1_Tick;
+            _timer1 = new Timer();
+            _timer1.Interval = 50;
+            _timer1.Tick += timer1_Tick;
 
-            bwImport = new BackgroundWorker();
-            bwImport.DoWork += bwImport_DoWork;
-            bwImport.RunWorkerCompleted += bwImport_RunWorkerCompleted;
+            _bwImport = new BackgroundWorker();
+            _bwImport.DoWork += bwImport_DoWork;
+            _bwImport.RunWorkerCompleted += bwImport_RunWorkerCompleted;
         }
 
         private void btCancel_Click(object sender, EventArgs e)
         {
-            cancel = true;
+            _cancel = true;
         }
 
         private void btImport_Click(object sender, EventArgs e)
@@ -52,37 +52,37 @@ namespace MySqlBackupTestApp
             lbStatus.Text = "0 of 0 bytes";
             this.Refresh();
 
-            cancel = false;
-            curBytes = 0;
-            totalBytes = 0;
+            _cancel = false;
+            _curBytes = 0;
+            _totalBytes = 0;
 
-            if (conn != null)
+            if (_conn != null)
             {
-                conn.Dispose();
-                conn = null;
+                _conn.Dispose();
+                _conn = null;
             }
 
-            conn = new MySqlConnection(Program.ConnectionString);
-            cmd = new MySqlCommand();
-            cmd.Connection = conn;
-            conn.Open();
+            _conn = new MySqlConnection(Program.ConnectionString);
+            _cmd = new MySqlCommand();
+            _cmd.Connection = _conn;
+            _conn.Open();
 
-            timer1.Start();
+            _timer1.Start();
 
-            mb.ImportInfo.IntervalForProgressReport = (int)nmImInterval.Value;
-            mb.Command = cmd;
+            _mb.ImportInfo.IntervalForProgressReport = (int)nmImInterval.Value;
+            _mb.Command = _cmd;
 
-            timeStart = DateTime.Now;
+            _timeStart = DateTime.Now;
             lbTotalTime.Text = string.Empty;
 
-            bwImport.RunWorkerAsync();
+            _bwImport.RunWorkerAsync();
         }
 
-        void bwImport_DoWork(object sender, DoWorkEventArgs e)
+        private void bwImport_DoWork(object sender, DoWorkEventArgs e)
         {
             try
             {
-                mb.ImportFromFile(Program.TargetFile);
+                _mb.ImportFromFile(Program.TargetFile);
             }
             catch (Exception ex)
             {
@@ -90,48 +90,48 @@ namespace MySqlBackupTestApp
             }
         }
 
-        void timer1_Tick(object sender, EventArgs e)
+        private void timer1_Tick(object sender, EventArgs e)
         {
-            if (cancel)
+            if (_cancel)
             {
-                timer1.Stop();
+                _timer1.Stop();
                 return;
             }
 
-            progressBar1.Maximum = totalBytes;
+            progressBar1.Maximum = _totalBytes;
 
-            if (curBytes < progressBar1.Maximum)
-                progressBar1.Value = curBytes;
+            if (_curBytes < progressBar1.Maximum)
+                progressBar1.Value = _curBytes;
 
             lbStatus.Text = progressBar1.Value + " of " + progressBar1.Maximum;
         }
 
-        void mb_ImportProgressChanged(object sender, ImportProgressArgs e)
+        private void mb_ImportProgressChanged(object sender, ImportProgressArgs e)
         {
-            if (cancel)
-                mb.StopAllProcess();
+            if (_cancel)
+                _mb.StopAllProcess();
 
-            totalBytes = (int)e.TotalBytes;
-            curBytes = (int)e.CurrentBytes;
+            _totalBytes = (int)e.TotalBytes;
+            _curBytes = (int)e.CurrentBytes;
         }
 
-        void bwImport_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void bwImport_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            timer1.Stop();
+            _timer1.Stop();
 
             CloseConnection();
 
-            timeEnd = DateTime.Now;
-            var ts = timeEnd - timeStart;
+            _timeEnd = DateTime.Now;
+            var ts = _timeEnd - _timeStart;
             lbTotalTime.Text = $"{ts.Hours} h {ts.Minutes} m {ts.Seconds} s {ts.Milliseconds} ms";
 
-            if (cancel)
+            if (_cancel)
             {
                 MessageBox.Show("Cancel by user.");
             }
             else
             {
-                if (mb.LastError == null)
+                if (_mb.LastError == null)
                 {
                     progressBar1.Value = progressBar1.Maximum;
                     lbStatus.Text = progressBar1.Value + " of " + progressBar1.Maximum;
@@ -140,20 +140,20 @@ namespace MySqlBackupTestApp
                     MessageBox.Show("Completed.");
                 }
                 else
-                    MessageBox.Show("Completed with error(s)." + Environment.NewLine + Environment.NewLine + mb.LastError.ToString());
+                    MessageBox.Show("Completed with error(s)." + Environment.NewLine + Environment.NewLine + _mb.LastError.ToString());
             }
         }
 
-        void CloseConnection()
+        private void CloseConnection()
         {
-            if (conn != null)
-                conn.Close();
+            if (_conn != null)
+                _conn.Close();
 
-            if (conn != null)
-                conn.Dispose();
+            if (_conn != null)
+                _conn.Dispose();
 
-            if (cmd != null)
-                cmd.Dispose();
+            if (_cmd != null)
+                _cmd.Dispose();
         }
     }
 }

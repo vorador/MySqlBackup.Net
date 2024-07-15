@@ -7,11 +7,10 @@ namespace Devart.Data.MySql
 {
     public class MySqlColumnList : IDisposable, IEnumerable<MySqlColumn>
     {
-        string _tableName;
-        string _sqlShowFullColumns = string.Empty;
-        Dictionary<string, MySqlColumn> _lst = new Dictionary<string, MySqlColumn>();
+        private readonly string _tableName;
+        private Dictionary<string, MySqlColumn> _lst = new Dictionary<string, MySqlColumn>();
 
-        public string SqlShowFullColumns { get { return _sqlShowFullColumns; } }
+        public string SqlShowFullColumns { get; } = string.Empty;
 
         public MySqlColumnList()
         { }
@@ -21,8 +20,8 @@ namespace Devart.Data.MySql
             _tableName = tableName;
             DataTable dtDataType = QueryExpress.GetTable(cmd, string.Format("SELECT * FROM  `{0}` where 1 = 2;", tableName));
             
-            _sqlShowFullColumns = string.Format("SHOW FULL COLUMNS FROM `{0}`;", tableName);
-            DataTable dtColInfo = QueryExpress.GetTable(cmd, _sqlShowFullColumns);
+            SqlShowFullColumns = string.Format("SHOW FULL COLUMNS FROM `{0}`;", tableName);
+            DataTable dtColInfo = QueryExpress.GetTable(cmd, SqlShowFullColumns);
 
             for (int i = 0; i < dtDataType.Columns.Count; i++)
             {

@@ -9,7 +9,7 @@ namespace MySqlConnector
 {
     public class MySqlBackup : IDisposable
     {
-        enum ProcessType
+        private enum ProcessType
         {
             Export,
             Import
@@ -26,50 +26,44 @@ namespace MySqlConnector
         public static string Version =>
             typeof(MySqlBackup).Assembly.GetName().Version.ToString();
 
-        MySqlDatabase _database = new MySqlDatabase();
-        MySqlServer _server = new MySqlServer();
-
-        Encoding textEncoding
+        private Encoding TextEncoding
         {
             get
             {
-
                 try
                 {
                     return ExportInfo.TextEncoding;
                 }
-                catch { }
+                catch { /*Fallback on the next line*/ }
                 return new UTF8Encoding(false);
             }
         }
 
-        TextWriter textWriter;
-        TextReader textReader;
-        DateTime timeStart;
-        DateTime timeEnd;
-        ProcessType currentProcess;
+        private TextWriter _textWriter;
+        private TextReader _textReader;
+        private DateTime _timeStart;
+        private DateTime _timeEnd;
+        private ProcessType _currentProcess;
 
-        ProcessEndType processCompletionType;
-        bool stopProcess = false;
-        Exception _lastError = null;
-        string _lastErrorSql = string.Empty;
+        private ProcessEndType _processCompletionType;
+        private bool _stopProcess = false;
 
-        string _currentTableName = string.Empty;
-        long _totalRowsInCurrentTable = 0;
-        long _totalRowsInAllTables = 0;
-        long _currentRowIndexInCurrentTable = 0;
-        long _currentRowIndexInAllTable = 0;
-        int _totalTables = 0;
-        int _currentTableIndex = 0;
-        Timer timerReport = null;
+        private string _currentTableName = string.Empty;
+        private long _totalRowsInCurrentTable = 0;
+        private long _totalRowsInAllTables = 0;
+        private long _currentRowIndexInCurrentTable = 0;
+        private long _currentRowIndexInAllTable = 0;
+        private int _totalTables = 0;
+        private int _currentTableIndex = 0;
+        private Timer _timerReport = null;
 
-        long _currentBytes = 0L;
-        long _totalBytes = 0L;
-        StringBuilder _sbImport = null;
-        MySqlScript _mySqlScript = null;
-        string _delimiter = string.Empty;
+        private long _currentBytes = 0L;
+        private long _totalBytes = 0L;
+        private StringBuilder _sbImport = null;
+        private MySqlScript _mySqlScript = null;
+        private string _delimiter = string.Empty;
 
-        enum NextImportAction
+        private enum NextImportAction
         {
             Ignore,
             SetNames,
@@ -79,39 +73,42 @@ namespace MySqlConnector
             AppendLineAndExecute
         }
 
-        public Exception LastError { get { return _lastError; } }
-        public string LastErrorSQL { get { return _lastErrorSql; } }
+        public Exception LastError { get; private set; }
+
+        public string LastErrorSql { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the information about the connected database.
         /// </summary>
-        public MySqlDatabase Database { get { return _database; } }
+        public MySqlDatabase Database { get; } = new();
+
         /// <summary>
         /// Gets the information about the connected MySQL server.
         /// </summary>
-        public MySqlServer Server { get { return _server; } }
+        public MySqlServer Server { get; set; } = new();
+
         /// <summary>
         /// Gets or Sets the instance of MySqlCommand.
         /// </summary>
         public MySqlCommand Command { get; set; }
 
-        public ExportInformations ExportInfo = new ExportInformations();
-        public ImportInformations ImportInfo = new ImportInformations();
+        public readonly ExportInformations ExportInfo = new();
+        public readonly ImportInformations ImportInfo = new();
 
-        public delegate void exportProgressChange(object sender, ExportProgressArgs e);
-        public event exportProgressChange ExportProgressChanged;
+        public delegate void ExportProgressChange(object sender, ExportProgressArgs e);
+        public event ExportProgressChange ExportProgressChanged;
 
-        public delegate void exportComplete(object sender, ExportCompleteArgs e);
-        public event exportComplete ExportCompleted;
+        public delegate void ExportComplete(object sender, ExportCompleteArgs e);
+        public event ExportComplete ExportCompleted;
 
-        public delegate void importProgressChange(object sender, ImportProgressArgs e);
-        public event importProgressChange ImportProgressChanged;
+        public delegate void ImportProgressChange(object sender, ImportProgressArgs e);
+        public event ImportProgressChange ImportProgressChanged;
 
-        public delegate void importComplete(object sender, ImportCompleteArgs e);
-        public event importComplete ImportCompleted;
+        public delegate void ImportComplete(object sender, ImportCompleteArgs e);
+        public event ImportComplete ImportCompleted;
 
-        public delegate void getTotalRowsProgressChange(object sender, GetTotalRowsArgs e);
-        public event getTotalRowsProgressChange GetTotalRowsProgressChanged;
+        public delegate void GetTotalRowsProgressChange(object sender, GetTotalRowsArgs e);
+        public event GetTotalRowsProgressChange GetTotalRowsProgressChanged;
 
         public MySqlBackup()
         {
@@ -124,38 +121,29 @@ namespace MySqlConnector
             Command = cmd;
         }
 
-        void InitializeComponents()
+        private void InitializeComponents()
         {
-            //AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-            _database.GetTotalRowsProgressChanged += _database_GetTotalRowsProgressChanged;
+            Database.GetTotalRowsProgressChanged += DatabaseGetTotalRowsProgressChanged;
 
-            timerReport = new Timer();
-            timerReport.Elapsed += timerReport_Elapsed;
-
-            //textEncoding = new UTF8Encoding(false);
+            _timerReport = new Timer();
+            _timerReport.Elapsed += TimerReportElapsed;
         }
 
-        void _database_GetTotalRowsProgressChanged(object sender, GetTotalRowsArgs e)
+        private void DatabaseGetTotalRowsProgressChanged(object sender, GetTotalRowsArgs e)
         {
-            if (GetTotalRowsProgressChanged != null)
-            {
-                GetTotalRowsProgressChanged(this, e);
-            }
+            GetTotalRowsProgressChanged?.Invoke(this, e);
         }
 
         #region Export
 
         public string ExportToString()
         {
-            using (MemoryStream ms = new MemoryStream())
-            {
-                ExportToMemoryStream(ms);
-                ms.Position = 0L;
-                using (var thisReader = new StreamReader(ms))
-                {
-                    return thisReader.ReadToEnd();
-                }
-            }
+            using var ms = new MemoryStream();
+            ExportToMemoryStream(ms);
+            ms.Position = 0L;
+            
+            using var thisReader = new StreamReader(ms);
+            return thisReader.ReadToEnd();
         }
 
         public void ExportToFile(string filePath)
@@ -163,40 +151,34 @@ namespace MySqlConnector
             string dir = Path.GetDirectoryName(filePath);
 
             if (!Directory.Exists(dir))
-            {
                 Directory.CreateDirectory(dir);
-            }
 
-            using (textWriter = new StreamWriter(filePath, false, textEncoding))
+            using (_textWriter = new StreamWriter(filePath, false, TextEncoding))
             {
                 ExportStart();
-                textWriter.Close();
+                _textWriter.Close();
             }
         }
 
         public void ExportToTextWriter(TextWriter tw)
         {
-            textWriter = tw;
+            _textWriter = tw;
             ExportStart();
         }
 
-        public void ExportToMemoryStream(MemoryStream ms)
-        {
-            ExportToMemoryStream(ms, true);
-        }
-
-        public void ExportToMemoryStream(MemoryStream ms, bool resetMemoryStreamPosition)
+        public void ExportToMemoryStream(MemoryStream ms, bool resetMemoryStreamPosition = true)
         {
             if (resetMemoryStreamPosition)
             {
-                if (ms == null)
-                    ms = new MemoryStream();
+                ms ??= new MemoryStream();
+                
                 if (ms.Length > 0)
                     ms = new MemoryStream();
+                
                 ms.Position = 0L;
             }
 
-            textWriter = new StreamWriter(ms, textEncoding);
+            _textWriter = new StreamWriter(ms, TextEncoding);
             ExportStart();
         }
 
@@ -205,48 +187,47 @@ namespace MySqlConnector
             if (sm.CanSeek)
                 sm.Seek(0, SeekOrigin.Begin);
 
-            textWriter = new StreamWriter(sm, textEncoding);
+            _textWriter = new StreamWriter(sm, TextEncoding);
             ExportStart();
         }
 
-        void ExportStart()
+        private void ExportStart()
         {
             try
             {
-                Export_InitializeVariables();
+                ExportInitializeVariables();
 
                 int stage = 1;
-
                 while (stage < 11)
                 {
-                    if (stopProcess) break;
+                    if (_stopProcess)
+                        break;
 
                     switch (stage)
                     {
-                        case 1: Export_BasicInfo(); break;
-                        case 2: Export_CreateDatabase(); break;
-                        case 3: Export_DocumentHeader(); break;
-                        case 4: Export_TableRows(); break;
-                        case 5: Export_Functions(); break;
-                        case 6: Export_Procedures(); break;
-                        case 7: Export_Events(); break;
-                        case 8: Export_Views(); break;
-                        case 9: Export_Triggers(); break;
-                        case 10: Export_DocumentFooter(); break;
+                        case 1: ExportBasicInfo(); break;
+                        case 2: ExportCreateDatabase(); break;
+                        case 3: ExportDocumentHeader(); break;
+                        case 4: ExportTableRows(); break;
+                        case 5: ExportFunctions(); break;
+                        case 6: ExportProcedures(); break;
+                        case 7: ExportEvents(); break;
+                        case 8: ExportViews(); break;
+                        case 9: ExportTriggers(); break;
+                        case 10: ExportDocumentFooter(); break;
                         default: break;
                     }
 
-                    textWriter.Flush();
+                    _textWriter.Flush();
 
-                    stage = stage + 1;
+                    stage += 1;
                 }
 
-                if (stopProcess) processCompletionType = ProcessEndType.Cancelled;
-                else processCompletionType = ProcessEndType.Complete;
+                _processCompletionType = _stopProcess ? ProcessEndType.Cancelled : ProcessEndType.Complete;
             }
             catch (Exception ex)
             {
-                _lastError = ex;
+                LastError = ex;
                 StopAllProcess();
                 throw;
             }
@@ -256,232 +237,212 @@ namespace MySqlConnector
             }
         }
 
-        void Export_InitializeVariables()
+        private void ExportInitializeVariables()
         {
             if (Command == null)
-            {
                 throw new Exception("MySqlCommand is not initialized. Object not set to an instance of an object.");
-            }
 
             if (Command.Connection == null)
-            {
                 throw new Exception("MySqlCommand.Connection is not initialized. Object not set to an instance of an object.");
-            }
 
             if (Command.Connection.State != System.Data.ConnectionState.Open)
-            {
                 throw new Exception("MySqlCommand.Connection is not opened.");
-            }
 
             if (ExportInfo.BlobExportMode == BlobDataExportMode.BinaryChar &&
                 !ExportInfo.BlobExportModeForBinaryStringAllow)
-            {
                 throw new Exception("[ExportInfo.BlobExportMode = BlobDataExportMode.BinaryString] is still under development. Please join the discussion at https://github.com/MySqlBackupNET/MySqlBackup.Net/issues (Title: Help requires. Unable to export BLOB in Char Format)");
-            }
 
-            timeStart = DateTime.Now;
+            _timeStart = DateTime.Now;
 
-            stopProcess = false;
-            processCompletionType = ProcessEndType.UnknownStatus;
-            currentProcess = ProcessType.Export;
-            _lastError = null;
-            timerReport.Interval = ExportInfo.IntervalForProgressReport;
-            //GetSHA512HashFromPassword(ExportInfo.EncryptionPassword);
+            _stopProcess = false;
+            _processCompletionType = ProcessEndType.UnknownStatus;
+            _currentProcess = ProcessType.Export;
+            LastError = null;
+            _timerReport.Interval = ExportInfo.IntervalForProgressReport;
 
-            _database.GetDatabaseInfo(Command, ExportInfo.GetTotalRowsMode);
-            _server.GetServerInfo(Command);
+            Database.GetDatabaseInfo(Command, ExportInfo.GetTotalRowsMode);
+            Server.GetServerInfo(Command);
+            
             _currentTableName = string.Empty;
             _totalRowsInCurrentTable = 0L;
-            _totalRowsInAllTables = Export_GetTablesToBeExported()
-                .Sum(pair => _database.Tables[pair.Key].TotalRows);
+            _totalRowsInAllTables = ExportGetTablesToBeExported().Sum(pair => Database.Tables[pair.Key].TotalRows);
             _currentRowIndexInCurrentTable = 0;
             _currentRowIndexInAllTable = 0;
             _totalTables = 0;
             _currentTableIndex = 0;
         }
 
-        void Export_BasicInfo()
+        private void ExportBasicInfo()
         {
-            Export_WriteComment(string.Format("MySqlBackup.NET {0}", Version));
+            ExportWriteComment($"MySqlBackup.NET {Version}");
 
-            if (ExportInfo.RecordDumpTime)
-                Export_WriteComment(string.Format("Dump Time: {0}", timeStart.ToString("yyyy-MM-dd HH:mm:ss")));
-            else
-                Export_WriteComment(string.Empty);
+            ExportWriteComment(ExportInfo.RecordDumpTime
+                ? $"Dump Time: {_timeStart:yyyy-MM-dd HH:mm:ss}"
+                : string.Empty);
 
-            Export_WriteComment("--------------------------------------");
-            Export_WriteComment(string.Format("Server version {0}", _server.Version));
-            textWriter.WriteLine();
+            ExportWriteComment("--------------------------------------");
+            ExportWriteComment($"Server version {Server.Version}");
+            _textWriter.WriteLine();
         }
 
-        void Export_CreateDatabase()
+        private void ExportCreateDatabase()
         {
             if (!ExportInfo.AddCreateDatabase && !ExportInfo.AddDropDatabase)
                 return;
 
-            textWriter.WriteLine();
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
+            _textWriter.WriteLine();
+            
             if (ExportInfo.AddDropDatabase)
-                Export_WriteLine(String.Format("DROP DATABASE `{0}`;", _database.Name));
+                ExportWriteLine($"DROP DATABASE `{Database.Name}`;");
+            
             if (ExportInfo.AddCreateDatabase)
             {
-                Export_WriteLine(_database.CreateDatabaseSQL);
-                Export_WriteLine(string.Format("USE `{0}`;", _database.Name));
+                ExportWriteLine(Database.CreateDatabaseSql);
+                ExportWriteLine($"USE `{Database.Name}`;");
             }
-            textWriter.WriteLine();
-            textWriter.WriteLine();
+            
+            _textWriter.WriteLine();
+            _textWriter.WriteLine();
         }
 
-        void Export_DocumentHeader()
+        private void ExportDocumentHeader()
         {
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             List<string> lstHeaders = ExportInfo.GetDocumentHeaders(Command);
-            if (lstHeaders.Count > 0)
-            {
-                foreach (string s in lstHeaders)
-                {
-                    Export_WriteLine(s);
-                }
+            
+            if (lstHeaders.Count <= 0) 
+                return;
+            
+            foreach (string s in lstHeaders)
+                ExportWriteLine(s);
 
-                textWriter.WriteLine();
-                textWriter.WriteLine();
-            }
+            _textWriter.WriteLine();
+            _textWriter.WriteLine();
         }
 
-        void Export_TableRows()
+        private void ExportTableRows()
         {
-            Dictionary<string, string> dicTables = Export_GetTablesToBeExportedReArranged();
+            Dictionary<string, string> dicTables = ExportGetTablesToBeExportedReArranged();
 
             _totalTables = dicTables.Count;
 
-            if (ExportInfo.ExportTableStructure || ExportInfo.ExportRows)
+            if (!ExportInfo.ExportTableStructure && !ExportInfo.ExportRows)
+                return;
+            
+            if (ExportProgressChanged != null)
+                _timerReport.Start();
+
+            foreach (KeyValuePair<string, string> kvTable in dicTables)
             {
-                if (ExportProgressChanged != null)
-                    timerReport.Start();
+                if (_stopProcess)
+                    return;
 
-                foreach (KeyValuePair<string, string> kvTable in dicTables)
-                {
-                    if (stopProcess)
-                        return;
+                string tableName = kvTable.Key;
+                string selectSql = kvTable.Value;
 
-                    string tableName = kvTable.Key;
-                    string selectSQL = kvTable.Value;
+                bool exclude = ExportThisTableIsExcluded(tableName);
+                
+                if (exclude)
+                    continue;
 
-                    bool exclude = Export_ThisTableIsExcluded(tableName);
-                    if (exclude)
-                    {
-                        continue;
-                    }
+                _currentTableName = tableName;
+                _currentTableIndex += 1;
+                _totalRowsInCurrentTable = Database.Tables[tableName].TotalRows;
 
-                    _currentTableName = tableName;
-                    _currentTableIndex = _currentTableIndex + 1;
-                    _totalRowsInCurrentTable = _database.Tables[tableName].TotalRows;
+                if (ExportInfo.ExportTableStructure)
+                    ExportTableStructure(tableName);
 
-                    if (ExportInfo.ExportTableStructure)
-                        Export_TableStructure(tableName);
-
-                    if (ExportInfo.ExportRows)
-                        Export_Rows(tableName, selectSQL);
-                }
+                if (ExportInfo.ExportRows)
+                    ExportRows(tableName, selectSql);
             }
         }
 
-        bool Export_ThisTableIsExcluded(string tableName)
+        private bool ExportThisTableIsExcluded(string tableName)
         {
             string tableNameLower = tableName.ToLower();
 
             foreach (string blacklistedTable in ExportInfo.ExcludeTables)
-            {
                 if (blacklistedTable.ToLower() == tableNameLower)
                     return true;
-            }
 
             return false;
         }
 
-        void Export_TableStructure(string tableName)
+        private void ExportTableStructure(string tableName)
         {
-            if (stopProcess)
+            if (_stopProcess)
                 return;
 
-            Export_WriteComment(string.Empty);
-            Export_WriteComment(string.Format("Definition of {0}", tableName));
-            Export_WriteComment(string.Empty);
+            ExportWriteComment(string.Empty);
+            ExportWriteComment($"Definition of {tableName}");
+            ExportWriteComment(string.Empty);
 
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             if (ExportInfo.AddDropTable)
-                Export_WriteLine(string.Format("DROP TABLE IF EXISTS `{0}`;", tableName));
+                ExportWriteLine($"DROP TABLE IF EXISTS `{tableName}`;");
 
-            if (ExportInfo.ResetAutoIncrement)
-                Export_WriteLine(_database.Tables[tableName].CreateTableSqlWithoutAutoIncrement);
-            else
-                Export_WriteLine(_database.Tables[tableName].CreateTableSql);
+            ExportWriteLine(ExportInfo.ResetAutoIncrement
+                ? Database.Tables[tableName].CreateTableSqlWithoutAutoIncrement
+                : Database.Tables[tableName].CreateTableSql);
 
-            textWriter.WriteLine();
-
-            textWriter.Flush();
+            _textWriter.WriteLine();
+            _textWriter.Flush();
         }
 
-        Dictionary<string, string> Export_GetTablesToBeExportedReArranged()
+        private Dictionary<string, string> ExportGetTablesToBeExportedReArranged()
         {
-            var dic = Export_GetTablesToBeExported();
+            Dictionary<string, string> tableSelectQueries = ExportGetTablesToBeExported();
+            var tableCreateQueries = new Dictionary<string, string>();
+            
+            foreach (KeyValuePair<string, string> selectPair in tableSelectQueries)
+                tableCreateQueries[selectPair.Key] = Database.Tables[selectPair.Key].CreateTableSql;
 
-            Dictionary<string, string> dic2 = new Dictionary<string, string>();
-            foreach (var kv in dic)
-            {
-                dic2[kv.Key] = _database.Tables[kv.Key].CreateTableSql;
-            }
-
-            var lst = Export_ReArrangeDependencies(dic2, "foreign key", "`");
-            dic2 = lst.ToDictionary(k => k, k => dic[k]);
-            return dic2;
+            List<string> lst = ExportReArrangeDependencies(tableCreateQueries, "foreign key", "`");
+            tableCreateQueries = lst.ToDictionary(k => k, k => tableSelectQueries[k]);
+            return tableCreateQueries;
         }
 
-        private Dictionary<string, string> Export_GetTablesToBeExported()
+        private Dictionary<string, string> ExportGetTablesToBeExported()
         {
-            if (ExportInfo.TablesToBeExportedDic is null ||
-                ExportInfo.TablesToBeExportedDic.Count == 0)
-            {
-                return _database.Tables
+            if (ExportInfo.TablesToBeExportedDic is null || ExportInfo.TablesToBeExportedDic.Count == 0)
+                return Database.Tables
                     .ToDictionary(
                         table => table.Name,
-                        table => string.Format("SELECT * FROM `{0}`;", table.Name));
-            }
+                        table => $"SELECT * FROM `{table.Name}`;");
 
             return ExportInfo.TablesToBeExportedDic
-                .Where(table => _database.Tables.Contains(table.Key))
+                .Where(table => Database.Tables.Contains(table.Key))
                 .ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
-        List<string> Export_ReArrangeDependencies(Dictionary<string, string> dic1, string splitKeyword, string keyNameWrapper)
+        private List<string> ExportReArrangeDependencies(Dictionary<string, string> tableCreateQueries, string splitKeyword, string keyNameWrapper)
         {
-            List<string> lst = new List<string>();
-            HashSet<string> index = new HashSet<string>();
-
-            bool requireLoop = true;
+            var lst = new List<string>();
+            var index = new HashSet<string>();
+            var requireLoop = true;
 
             while (requireLoop)
             {
                 requireLoop = false;
 
-                foreach (var kv in dic1)
+                foreach (KeyValuePair<string, string> createPair in tableCreateQueries)
                 {
-                    if (index.Contains(kv.Key))
+                    if (index.Contains(createPair.Key))
                         continue;
 
-                    bool allReferencedAdded = true;
-
-                    string createSql = kv.Value.ToLower();
-                    string referenceInfo = string.Empty;
+                    var allReferencedAdded = true;
+                    string createSql = createPair.Value.ToLower();
+                    var referenceInfo = string.Empty;
 
                     bool referenceTaken = false;
                     if (!string.IsNullOrEmpty(splitKeyword))
                     {
-                        if (createSql.Contains(string.Format(" {0} ", splitKeyword)))
+                        if (createSql.Contains($" {splitKeyword} "))
                         {
-                            string[] sa = createSql.Split(new string[] { string.Format(" {0} ", splitKeyword) }, StringSplitOptions.RemoveEmptyEntries);
+                            string[] sa = createSql.Split(new[] { $" {splitKeyword} " }, StringSplitOptions.RemoveEmptyEntries);
                             referenceInfo = sa[sa.Length - 1];
                             referenceTaken = true;
                         }
@@ -490,114 +451,111 @@ namespace MySqlConnector
                     if (!referenceTaken)
                         referenceInfo = createSql;
 
-                    foreach (var kv2 in dic1)
+                    foreach (KeyValuePair<string, string> localCreatePair in tableCreateQueries)
                     {
-                        if (kv.Key == kv2.Key)
+                        if (createPair.Key == localCreatePair.Key)
                             continue;
 
-                        if (index.Contains(kv2.Key))
+                        if (index.Contains(localCreatePair.Key))
                             continue;
 
-                        string _thisTBname = string.Format("{0}{1}{0}", keyNameWrapper, kv2.Key.ToLower());
+                        string thisTBname = string.Format("{0}{1}{0}", keyNameWrapper, localCreatePair.Key.ToLower());
 
-                        if (referenceInfo.Contains(_thisTBname))
-                        {
-                            allReferencedAdded = false;
-                            break;
-                        }
+                        if (!referenceInfo.Contains(thisTBname))
+                            continue;
+                        
+                        allReferencedAdded = false;
+                        break;
                     }
 
-                    if (allReferencedAdded)
-                    {
-                        if (!index.Contains(kv.Key))
-                        {
-                            lst.Add(kv.Key);
-                            index.Add(kv.Key);
-                            requireLoop = true;
-                            break;
-                        }
-                    }
+                    if (!allReferencedAdded) 
+                        continue;
+                    
+                    if (index.Contains(createPair.Key))
+                        continue;
+                    
+                    lst.Add(createPair.Key);
+                    index.Add(createPair.Key);
+                    requireLoop = true;
+                    break;
                 }
             }
 
-            foreach (var kv in dic1)
+            foreach (KeyValuePair<string, string> kv in tableCreateQueries)
             {
-                if (!index.Contains(kv.Key))
-                {
-                    lst.Add(kv.Key);
-                    index.Add(kv.Key);
-                }
+                if (index.Contains(kv.Key))
+                    continue;
+                
+                lst.Add(kv.Key);
+                index.Add(kv.Key);
             }
 
             return lst;
         }
 
-        void Export_Rows(string tableName, string selectSQL)
+        private void ExportRows(string tableName, string selectSql)
         {
-            Export_WriteComment(string.Empty);
-            Export_WriteComment(string.Format("Dumping data for table {0}", tableName));
-            Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
-            Export_WriteLine(string.Format("/*!40000 ALTER TABLE `{0}` DISABLE KEYS */;", tableName));
+            ExportWriteComment(string.Empty);
+            ExportWriteComment($"Dumping data for table {tableName}");
+            ExportWriteComment(string.Empty);
+            _textWriter.WriteLine();
+            ExportWriteLine($"/*!40000 ALTER TABLE `{tableName}` DISABLE KEYS */;");
 
             if (ExportInfo.WrapWithinTransaction)
-                Export_WriteLine("START TRANSACTION;");
+                ExportWriteLine("START TRANSACTION;");
 
-            Export_RowsData(tableName, selectSQL);
+            ExportRowsData(tableName, selectSql);
 
             if (ExportInfo.WrapWithinTransaction)
-                Export_WriteLine("COMMIT;");
+                ExportWriteLine("COMMIT;");
 
-            Export_WriteLine(string.Format("/*!40000 ALTER TABLE `{0}` ENABLE KEYS */;", tableName));
-            textWriter.WriteLine();
-            textWriter.Flush();
+            ExportWriteLine($"/*!40000 ALTER TABLE `{tableName}` ENABLE KEYS */;");
+            _textWriter.WriteLine();
+            _textWriter.Flush();
         }
 
-        void Export_RowsData(string tableName, string selectSQL)
+        private void ExportRowsData(string tableName, string selectSql)
         {
             _currentRowIndexInCurrentTable = 0L;
 
-            if (ExportInfo.RowsExportMode == RowsDataExportMode.Insert ||
-                ExportInfo.RowsExportMode == RowsDataExportMode.InsertIgnore ||
-                ExportInfo.RowsExportMode == RowsDataExportMode.Replace)
+            switch (ExportInfo.RowsExportMode)
             {
-                Export_RowsData_Insert_Ignore_Replace(tableName, selectSQL);
-            }
-            else if (ExportInfo.RowsExportMode == RowsDataExportMode.OnDuplicateKeyUpdate)
-            {
-                Export_RowsData_OnDuplicateKeyUpdate(tableName, selectSQL);
-            }
-            else if (ExportInfo.RowsExportMode == RowsDataExportMode.Update)
-            {
-                Export_RowsData_Update(tableName, selectSQL);
+                case RowsDataExportMode.Insert:
+                case RowsDataExportMode.InsertIgnore:
+                case RowsDataExportMode.Replace:
+                    ExportRowsDataInsertIgnoreReplace(tableName, selectSql);
+                    break;
+                case RowsDataExportMode.OnDuplicateKeyUpdate:
+                    ExportRowsDataOnDuplicateKeyUpdate(tableName, selectSql);
+                    break;
+                case RowsDataExportMode.Update:
+                    ExportRowsDataUpdate(tableName, selectSql);
+                    break;
             }
         }
 
-        void Export_RowsData_Insert_Ignore_Replace(string tableName, string selectSQL)
+        private void ExportRowsDataInsertIgnoreReplace(string tableName, string selectSql)
         {
-            MySqlTable table = _database.Tables[tableName];
+            MySqlTable table = Database.Tables[tableName];
 
-            Command.CommandText = selectSQL;
+            Command.CommandText = selectSql;
             MySqlDataReader rdr = Command.ExecuteReader();
 
             string insertStatementHeader = null;
 
-            var sb = new StringBuilder((int)ExportInfo.MaxSqlLength);
+            var sb = new StringBuilder(ExportInfo.MaxSqlLength);
 
             while (rdr.Read())
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                _currentRowIndexInAllTable = _currentRowIndexInAllTable + 1;
-                _currentRowIndexInCurrentTable = _currentRowIndexInCurrentTable + 1;
+                _currentRowIndexInAllTable += 1;
+                _currentRowIndexInCurrentTable += 1;
 
-                if (insertStatementHeader == null)
-                {
-                    insertStatementHeader = Export_GetInsertStatementHeader(ExportInfo.RowsExportMode, tableName, rdr);
-                }
+                insertStatementHeader ??= ExportGetInsertStatementHeader(ExportInfo.RowsExportMode, tableName, rdr);
 
-                string sqlDataRow = Export_GetValueString(rdr, table);
+                string sqlDataRow = ExportGetValueString(rdr, table);
 
                 if (sb.Length == 0)
                 {
@@ -605,24 +563,26 @@ namespace MySqlConnector
                         sb.AppendLine(insertStatementHeader);
                     else
                         sb.Append(insertStatementHeader);
+                    
                     sb.Append(sqlDataRow);
                 }
-                else if ((long)sb.Length + (long)sqlDataRow.Length < ExportInfo.MaxSqlLength)
+                else if (sb.Length + (long)sqlDataRow.Length < ExportInfo.MaxSqlLength)
                 {
                     if (ExportInfo.InsertLineBreakBetweenInserts)
                         sb.AppendLine(",");
                     else
                         sb.Append(",");
+                    
                     sb.Append(sqlDataRow);
                 }
                 else
                 {
                     sb.AppendFormat(";");
 
-                    Export_WriteLine(sb.ToString());
-                    textWriter.Flush();
+                    ExportWriteLine(sb.ToString());
+                    _textWriter.Flush();
 
-                    sb = new StringBuilder((int)ExportInfo.MaxSqlLength);
+                    sb.Clear();
                     sb.AppendLine(insertStatementHeader);
                     sb.Append(sqlDataRow);
                 }
@@ -631,150 +591,130 @@ namespace MySqlConnector
             rdr.Close();
 
             if (sb.Length > 0)
-            {
                 sb.Append(";");
-            }
 
-            Export_WriteLine(sb.ToString());
-            textWriter.Flush();
-
-            sb = null;
+            ExportWriteLine(sb.ToString());
+            _textWriter.Flush();
+            sb.Clear();
         }
 
-        void Export_RowsData_OnDuplicateKeyUpdate(string tableName, string selectSQL)
+        private void ExportRowsDataOnDuplicateKeyUpdate(string tableName, string selectSql)
         {
-            MySqlTable table = _database.Tables[tableName];
+            MySqlTable table = Database.Tables[tableName];
+            bool allPrimaryField = table.Columns.All(col => col.IsPrimaryKey);
 
-            bool allPrimaryField = true;
-            foreach (var col in table.Columns)
-            {
-                if (!col.IsPrimaryKey)
-                {
-                    allPrimaryField = false;
-                    break;
-                }
-            }
-
-            Command.CommandText = selectSQL;
+            Command.CommandText = selectSql;
             MySqlDataReader rdr = Command.ExecuteReader();
 
             while (rdr.Read())
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                _currentRowIndexInAllTable = _currentRowIndexInAllTable + 1;
-                _currentRowIndexInCurrentTable = _currentRowIndexInCurrentTable + 1;
+                _currentRowIndexInAllTable += 1;
+                _currentRowIndexInCurrentTable += 1;
 
-                StringBuilder sb = new StringBuilder();
+                var sb = new StringBuilder();
 
                 if (allPrimaryField)
                 {
-                    sb.Append(Export_GetInsertStatementHeader(RowsDataExportMode.InsertIgnore, tableName, rdr));
-                    sb.Append(Export_GetValueString(rdr, table));
+                    sb.Append(ExportGetInsertStatementHeader(RowsDataExportMode.InsertIgnore, tableName, rdr));
+                    sb.Append(ExportGetValueString(rdr, table));
                 }
                 else
                 {
-                    sb.Append(Export_GetInsertStatementHeader(RowsDataExportMode.Insert, tableName, rdr));
-                    sb.Append(Export_GetValueString(rdr, table));
+                    sb.Append(ExportGetInsertStatementHeader(RowsDataExportMode.Insert, tableName, rdr));
+                    sb.Append(ExportGetValueString(rdr, table));
                     sb.Append(" ON DUPLICATE KEY UPDATE ");
-                    Export_GetUpdateString(rdr, table, sb);
+                    ExportGetUpdateString(rdr, table, sb);
                 }
 
                 sb.Append(";");
 
-                Export_WriteLine(sb.ToString());
-                textWriter.Flush();
+                ExportWriteLine(sb.ToString());
+                _textWriter.Flush();
+                sb.Clear();
             }
 
             rdr.Close();
         }
 
-        void Export_RowsData_Update(string tableName, string selectSQL)
+        private void ExportRowsDataUpdate(string tableName, string selectSql)
         {
-            MySqlTable table = _database.Tables[tableName];
-
-            bool allPrimaryField = true;
-            foreach (var col in table.Columns)
-            {
-                if (!col.IsPrimaryKey)
-                {
-                    allPrimaryField = false;
-                    break;
-                }
-            }
+            MySqlTable table = Database.Tables[tableName];
+            bool allPrimaryField = table.Columns.All(col => col.IsPrimaryKey);
 
             if (allPrimaryField)
                 return;
 
-            bool allNonPrimaryField = true;
-            foreach (var col in table.Columns)
-            {
-                if (col.IsPrimaryKey)
-                {
-                    allNonPrimaryField = false;
-                    break;
-                }
-            }
+            bool allNonPrimaryField = table.Columns.All(col => !col.IsPrimaryKey);
 
             if (allNonPrimaryField)
                 return;
 
-            Command.CommandText = selectSQL;
+            Command.CommandText = selectSql;
             MySqlDataReader rdr = Command.ExecuteReader();
 
             while (rdr.Read())
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                _currentRowIndexInAllTable = _currentRowIndexInAllTable + 1;
-                _currentRowIndexInCurrentTable = _currentRowIndexInCurrentTable + 1;
+                _currentRowIndexInAllTable += 1;
+                _currentRowIndexInCurrentTable += 1;
 
-                StringBuilder sb = new StringBuilder();
+                var sb = new StringBuilder();
                 sb.Append("UPDATE `");
                 sb.Append(tableName);
                 sb.Append("` SET ");
 
-                Export_GetUpdateString(rdr, table, sb);
+                ExportGetUpdateString(rdr, table, sb);
 
                 sb.Append(" WHERE ");
 
-                Export_GetConditionString(rdr, table, sb);
+                ExportGetConditionString(rdr, table, sb);
 
                 sb.Append(";");
 
-                Export_WriteLine(sb.ToString());
+                ExportWriteLine(sb.ToString());
 
-                textWriter.Flush();
+                _textWriter.Flush();
+                sb.Clear();
             }
 
             rdr.Close();
         }
 
-        private string Export_GetInsertStatementHeader(RowsDataExportMode rowsExportMode, string tableName, MySqlDataReader rdr)
+        private string ExportGetInsertStatementHeader(RowsDataExportMode rowsExportMode, string tableName, MySqlDataReader rdr)
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
 
-            if (rowsExportMode == RowsDataExportMode.Insert)
-                sb.Append("INSERT INTO `");
-            else if (rowsExportMode == RowsDataExportMode.InsertIgnore)
-                sb.Append("INSERT IGNORE INTO `");
-            else if (rowsExportMode == RowsDataExportMode.Replace)
-                sb.Append("REPLACE INTO `");
+            switch (rowsExportMode)
+            {
+                case RowsDataExportMode.Insert:
+                    sb.Append("INSERT INTO `");
+                    break;
+                case RowsDataExportMode.InsertIgnore:
+                    sb.Append("INSERT IGNORE INTO `");
+                    break;
+                case RowsDataExportMode.Replace:
+                    sb.Append("REPLACE INTO `");
+                    break;
+            }
 
             sb.Append(tableName);
             sb.Append("`(");
 
             for (int i = 0; i < rdr.FieldCount; i++)
             {
-                string _colname = rdr.GetName(i);
+                string colname = rdr.GetName(i);
 
-                if (_database.Tables[tableName].Columns[_colname].IsGeneratedColumn)
+                if (Database.Tables[tableName].Columns[colname].IsGeneratedColumn)
                     continue;
 
                 if (i > 0)
                     sb.Append(",");
+                
                 sb.Append("`");
                 sb.Append(rdr.GetName(i));
                 sb.Append("`");
@@ -784,9 +724,9 @@ namespace MySqlConnector
             return sb.ToString();
         }
 
-        private string Export_GetValueString(MySqlDataReader rdr, MySqlTable table)
+        private string ExportGetValueString(MySqlDataReader rdr, MySqlTable table)
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
 
             for (int i = 0; i < rdr.FieldCount; i++)
             {
@@ -795,16 +735,11 @@ namespace MySqlConnector
                 if (table.Columns[columnName].IsGeneratedColumn)
                     continue;
 
-                if (sb.Length == 0)
-                    sb.AppendFormat("(");
-                else
-                    sb.AppendFormat(",");
-
-
+                sb.AppendFormat(sb.Length == 0 ? "(" : ",");
+                
                 object ob = rdr[i];
-                var col = table.Columns[columnName];
+                MySqlColumn col = table.Columns[columnName];
 
-                //sb.Append(QueryExpress.ConvertToSqlFormat(rdr, i, true, true, col));
                 sb.Append(QueryExpress.ConvertToSqlFormat(ob, true, true, col, ExportInfo.BlobExportMode));
             }
 
@@ -812,7 +747,7 @@ namespace MySqlConnector
             return sb.ToString();
         }
 
-        private void Export_GetUpdateString(MySqlDataReader rdr, MySqlTable table, StringBuilder sb)
+        private void ExportGetUpdateString(MySqlDataReader rdr, MySqlTable table, StringBuilder sb)
         {
             bool isFirst = true;
 
@@ -820,270 +755,259 @@ namespace MySqlConnector
             {
                 string colName = rdr.GetName(i);
 
-                var col = table.Columns[colName];
+                MySqlColumn col = table.Columns[colName];
 
-                if (!col.IsPrimaryKey)
-                {
-                    if (isFirst)
-                        isFirst = false;
-                    else
-                        sb.Append(",");
+                if (col.IsPrimaryKey) 
+                    continue;
+                
+                if (isFirst)
+                    isFirst = false;
+                else
+                    sb.Append(",");
 
-                    sb.Append("`");
-                    sb.Append(colName);
-                    sb.Append("`=");
-                    //sb.Append(QueryExpress.ConvertToSqlFormat(rdr, i, true, true, col));
-                    sb.Append(QueryExpress.ConvertToSqlFormat(rdr[i], true, true, col, ExportInfo.BlobExportMode));
-                }
+                sb.Append("`");
+                sb.Append(colName);
+                sb.Append("`=");
+                sb.Append(QueryExpress.ConvertToSqlFormat(rdr[i], true, true, col, ExportInfo.BlobExportMode));
             }
         }
 
-        private void Export_GetConditionString(MySqlDataReader rdr, MySqlTable table, StringBuilder sb)
+        private void ExportGetConditionString(MySqlDataReader rdr, MySqlTable table, StringBuilder sb)
         {
             bool isFirst = true;
 
             for (int i = 0; i < rdr.FieldCount; i++)
             {
                 string colName = rdr.GetName(i);
+                MySqlColumn col = table.Columns[colName];
 
-                var col = table.Columns[colName];
+                if (!col.IsPrimaryKey) 
+                    continue;
+                
+                if (isFirst)
+                    isFirst = false;
+                else
+                    sb.Append(" and ");
 
-                if (col.IsPrimaryKey)
-                {
-                    if (isFirst)
-                        isFirst = false;
-                    else
-                        sb.Append(" and ");
-
-                    sb.Append("`");
-                    sb.Append(colName);
-                    sb.Append("`=");
-                    //sb.Append(QueryExpress.ConvertToSqlFormat(rdr, i, true, true, col));
-                    sb.Append(QueryExpress.ConvertToSqlFormat(rdr[i], true, true, col, ExportInfo.BlobExportMode));
-                }
+                sb.Append("`");
+                sb.Append(colName);
+                sb.Append("`=");
+                sb.Append(QueryExpress.ConvertToSqlFormat(rdr[i], true, true, col, ExportInfo.BlobExportMode));
             }
         }
 
-        void Export_Procedures()
+        private void ExportProcedures()
         {
-            if (!ExportInfo.ExportProcedures || _database.Procedures.Count == 0)
+            if (!ExportInfo.ExportProcedures || Database.Procedures.Count == 0)
                 return;
 
-            Export_WriteComment(string.Empty);
-            Export_WriteComment("Dumping procedures");
-            Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            ExportWriteComment(string.Empty);
+            ExportWriteComment("Dumping procedures");
+            ExportWriteComment(string.Empty);
+            _textWriter.WriteLine();
 
-            foreach (MySqlProcedure procedure in _database.Procedures)
+            foreach (MySqlProcedure procedure in Database.Procedures)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                if (procedure.CreateProcedureSQLWithoutDefiner.Trim().Length == 0 ||
-                    procedure.CreateProcedureSQL.Trim().Length == 0)
+                if (procedure.CreateProcedureSqlWithoutDefiner.Trim().Length == 0 ||
+                    procedure.CreateProcedureSql.Trim().Length == 0)
                     continue;
 
-                Export_WriteLine(string.Format("DROP PROCEDURE IF EXISTS `{0}`;", procedure.Name));
-                Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
+                ExportWriteLine($"DROP PROCEDURE IF EXISTS `{procedure.Name}`;");
+                ExportWriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(procedure.CreateProcedureSQLWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(procedure.CreateProcedureSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(procedure.CreateProcedureSQL + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(procedure.CreateProcedureSql + " " + ExportInfo.ScriptsDelimiter);
 
-                Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                ExportWriteLine("DELIMITER ;");
+                _textWriter.WriteLine();
             }
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_Functions()
+        private void ExportFunctions()
         {
-            if (!ExportInfo.ExportFunctions || _database.Functions.Count == 0)
+            if (!ExportInfo.ExportFunctions || Database.Functions.Count == 0)
                 return;
 
-            Export_WriteComment(string.Empty);
-            Export_WriteComment("Dumping functions");
-            Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            ExportWriteComment(string.Empty);
+            ExportWriteComment("Dumping functions");
+            ExportWriteComment(string.Empty);
+            _textWriter.WriteLine();
 
-            foreach (MySqlFunction function in _database.Functions)
+            foreach (MySqlFunction function in Database.Functions)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                if (function.CreateFunctionSQL.Trim().Length == 0 ||
-                    function.CreateFunctionSQLWithoutDefiner.Trim().Length == 0)
+                if (function.CreateFunctionSql.Trim().Length == 0 ||
+                    function.CreateFunctionSqlWithoutDefiner.Trim().Length == 0)
                     continue;
 
-                Export_WriteLine(string.Format("DROP FUNCTION IF EXISTS `{0}`;", function.Name));
-                Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
+                ExportWriteLine($"DROP FUNCTION IF EXISTS `{function.Name}`;");
+                ExportWriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(function.CreateFunctionSQLWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(function.CreateFunctionSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(function.CreateFunctionSQL + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(function.CreateFunctionSql + " " + ExportInfo.ScriptsDelimiter);
 
-                Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                ExportWriteLine("DELIMITER ;");
+                _textWriter.WriteLine();
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_Views()
+        private void ExportViews()
         {
-            if (!ExportInfo.ExportViews || _database.Views.Count == 0)
+            if (!ExportInfo.ExportViews || Database.Views.Count == 0)
                 return;
 
             // ReArrange Views
-            Dictionary<string, string> dicView_Create = new Dictionary<string, string>();
-            foreach (var view in _database.Views)
+            var dicViewCreate = new Dictionary<string, string>();
+            foreach (MySqlView view in Database.Views)
+                dicViewCreate[view.Name] = view.CreateViewSql;
+
+            List<string> lst = ExportReArrangeDependencies(dicViewCreate, null, "`");
+
+            ExportWriteComment(string.Empty);
+            ExportWriteComment("Dumping views");
+            ExportWriteComment(string.Empty);
+            _textWriter.WriteLine();
+
+            foreach (string viewname in lst)
             {
-                dicView_Create[view.Name] = view.CreateViewSQL;
-            }
-
-            var lst = Export_ReArrangeDependencies(dicView_Create, null, "`");
-
-            Export_WriteComment(string.Empty);
-            Export_WriteComment("Dumping views");
-            Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
-
-            foreach (var viewname in lst)
-            {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                var view = _database.Views[viewname];
+                MySqlView view = Database.Views[viewname];
 
-                if (view.CreateViewSQL.Trim().Length == 0 ||
-                    view.CreateViewSQLWithoutDefiner.Trim().Length == 0)
+                if (view.CreateViewSql.Trim().Length == 0 || view.CreateViewSqlWithoutDefiner.Trim().Length == 0)
                     continue;
 
-                Export_WriteLine(string.Format("DROP TABLE IF EXISTS `{0}`;", view.Name));
-                Export_WriteLine(string.Format("DROP VIEW IF EXISTS `{0}`;", view.Name));
+                ExportWriteLine($"DROP TABLE IF EXISTS `{view.Name}`;");
+                ExportWriteLine($"DROP VIEW IF EXISTS `{view.Name}`;");
 
-                if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(view.CreateViewSQLWithoutDefiner);
-                else
-                    Export_WriteLine(view.CreateViewSQL);
+                ExportWriteLine(ExportInfo.ExportRoutinesWithoutDefiner
+                    ? view.CreateViewSqlWithoutDefiner
+                    : view.CreateViewSql);
 
-                textWriter.WriteLine();
+                _textWriter.WriteLine();
             }
 
-            textWriter.WriteLine();
-            textWriter.Flush();
+            _textWriter.WriteLine();
+            _textWriter.Flush();
         }
 
-        void Export_Events()
+        private void ExportEvents()
         {
-            if (!ExportInfo.ExportEvents || _database.Events.Count == 0)
+            if (!ExportInfo.ExportEvents || Database.Events.Count == 0)
                 return;
 
-            Export_WriteComment(string.Empty);
-            Export_WriteComment("Dumping events");
-            Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            ExportWriteComment(string.Empty);
+            ExportWriteComment("Dumping events");
+            ExportWriteComment(string.Empty);
+            _textWriter.WriteLine();
 
-            foreach (MySqlEvent e in _database.Events)
+            foreach (MySqlEvent e in Database.Events)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                if (e.CreateEventSql.Trim().Length == 0 ||
-                    e.CreateEventSqlWithoutDefiner.Trim().Length == 0)
+                if (e.CreateEventSql.Trim().Length == 0 || e.CreateEventSqlWithoutDefiner.Trim().Length == 0)
                     continue;
 
-                Export_WriteLine(string.Format("DROP EVENT IF EXISTS `{0}`;", e.Name));
-                Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
+                ExportWriteLine($"DROP EVENT IF EXISTS `{e.Name}`;");
+                ExportWriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(e.CreateEventSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(e.CreateEventSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(e.CreateEventSql + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(e.CreateEventSql + " " + ExportInfo.ScriptsDelimiter);
 
-                Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                ExportWriteLine("DELIMITER ;");
+                _textWriter.WriteLine();
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_Triggers()
+        private void ExportTriggers()
         {
-            if (!ExportInfo.ExportTriggers ||
-                _database.Triggers.Count == 0)
+            if (!ExportInfo.ExportTriggers || Database.Triggers.Count == 0)
                 return;
 
-            Export_WriteComment(string.Empty);
-            Export_WriteComment("Dumping triggers");
-            Export_WriteComment(string.Empty);
-            textWriter.WriteLine();
+            ExportWriteComment(string.Empty);
+            ExportWriteComment("Dumping triggers");
+            ExportWriteComment(string.Empty);
+            _textWriter.WriteLine();
 
-            foreach (MySqlTrigger trigger in _database.Triggers)
+            foreach (MySqlTrigger trigger in Database.Triggers)
             {
-                if (stopProcess)
+                if (_stopProcess)
                     return;
 
-                var createTriggerSQL = trigger.CreateTriggerSQL.Trim();
-                var createTriggerSQLWithoutDefiner = trigger.CreateTriggerSQLWithoutDefiner.Trim();
-                if (createTriggerSQL.Length == 0 ||
-                    createTriggerSQLWithoutDefiner.Length == 0)
+                string createTriggerSql = trigger.CreateTriggerSql.Trim();
+                string createTriggerSqlWithoutDefiner = trigger.CreateTriggerSqlWithoutDefiner.Trim();
+                
+                if (createTriggerSql.Length == 0 ||
+                    createTriggerSqlWithoutDefiner.Length == 0)
                     continue;
 
-                Export_WriteLine(string.Format("DROP TRIGGER /*!50030 IF EXISTS */ `{0}`;", trigger.Name));
-                Export_WriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
+                ExportWriteLine($"DROP TRIGGER /*!50030 IF EXISTS */ `{trigger.Name}`;");
+                ExportWriteLine("DELIMITER " + ExportInfo.ScriptsDelimiter);
 
                 if (ExportInfo.ExportRoutinesWithoutDefiner)
-                    Export_WriteLine(createTriggerSQLWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(createTriggerSqlWithoutDefiner + " " + ExportInfo.ScriptsDelimiter);
                 else
-                    Export_WriteLine(createTriggerSQL + " " + ExportInfo.ScriptsDelimiter);
+                    ExportWriteLine(createTriggerSql + " " + ExportInfo.ScriptsDelimiter);
 
-                Export_WriteLine("DELIMITER ;");
-                textWriter.WriteLine();
+                ExportWriteLine("DELIMITER ;");
+                _textWriter.WriteLine();
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_DocumentFooter()
+        private void ExportDocumentFooter()
         {
-            textWriter.WriteLine();
+            _textWriter.WriteLine();
 
             List<string> lstFooters = ExportInfo.GetDocumentFooters();
             if (lstFooters.Count > 0)
-            {
                 foreach (string s in lstFooters)
-                {
-                    Export_WriteLine(s);
-                }
-            }
+                    ExportWriteLine(s);
 
-            timeEnd = DateTime.Now;
+            _timeEnd = DateTime.Now;
 
             if (ExportInfo.RecordDumpTime)
             {
-                TimeSpan ts = timeEnd - timeStart;
+                TimeSpan ts = _timeEnd - _timeStart;
 
-                textWriter.WriteLine();
-                textWriter.WriteLine();
-                Export_WriteComment(string.Format("Dump completed on {0}", timeEnd.ToString("yyyy-MM-dd HH:mm:ss")));
-                Export_WriteComment(string.Format("Total time: {0}:{1}:{2}:{3}:{4} (d:h:m:s:ms)", ts.Days, ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds));
+                _textWriter.WriteLine();
+                _textWriter.WriteLine();
+                ExportWriteComment($"Dump completed on {_timeEnd:yyyy-MM-dd HH:mm:ss}");
+                ExportWriteComment(
+                    $"Total time: {ts.Days}:{ts.Hours}:{ts.Minutes}:{ts.Seconds}:{ts.Milliseconds} (d:h:m:s:ms)");
             }
 
-            textWriter.Flush();
+            _textWriter.Flush();
         }
 
-        void Export_WriteComment(string text)
+        private void ExportWriteComment(string text)
         {
             if (ExportInfo.EnableComment)
-                Export_WriteLine(string.Format("-- {0}", text));
+                ExportWriteLine($"-- {text}");
         }
 
-        void Export_WriteLine(string text)
+        private void ExportWriteLine(string text)
         {
-            textWriter.WriteLine(text);
+            _textWriter.WriteLine(text);
         }
 
         #endregion
@@ -1092,28 +1016,23 @@ namespace MySqlConnector
 
         public void ImportFromString(string sqldumptext)
         {
-            using (MemoryStream ms = new MemoryStream())
-            {
-                using (StreamWriter thisWriter = new StreamWriter(ms))
-                {
-                    thisWriter.Write(sqldumptext);
-                    thisWriter.Flush();
+            using var ms = new MemoryStream();
+            
+            using var thisWriter = new StreamWriter(ms);
+            thisWriter.Write(sqldumptext);
+            thisWriter.Flush();
 
-                    ms.Position = 0L;
+            ms.Position = 0L;
 
-                    ImportFromMemoryStream(ms);
-                }
-            }
+            ImportFromMemoryStream(ms);
         }
 
         public void ImportFromFile(string filePath)
         {
-            System.IO.FileInfo fi = new FileInfo(filePath);
+            var fi = new FileInfo(filePath);
 
-            using (TextReader tr = new StreamReader(filePath))
-            {
-                ImportFromTextReaderStream(tr, fi);
-            }
+            using TextReader tr = new StreamReader(filePath);
+            ImportFromTextReaderStream(tr, fi);
         }
 
         public void ImportFromTextReader(TextReader tr)
@@ -1125,8 +1044,8 @@ namespace MySqlConnector
         {
             ms.Position = 0;
             _totalBytes = ms.Length;
-            textReader = new StreamReader(ms);
-            Import_Start();
+            _textReader = new StreamReader(ms);
+            ImportStart();
         }
 
         public void ImportFromStream(Stream sm)
@@ -1134,41 +1053,36 @@ namespace MySqlConnector
             if (sm.CanSeek)
                 sm.Seek(0, SeekOrigin.Begin);
 
-            textReader = new StreamReader(sm);
-            Import_Start();
+            _textReader = new StreamReader(sm);
+            ImportStart();
         }
 
-        void ImportFromTextReaderStream(TextReader tr, FileInfo fileInfo)
+        private void ImportFromTextReaderStream(TextReader tr, FileInfo fileInfo)
         {
-            if (fileInfo != null)
-                _totalBytes = fileInfo.Length;
-            else
-                _totalBytes = 0L;
-
-            textReader = tr;
-
-            Import_Start();
+            _totalBytes = fileInfo?.Length ?? 0L;
+            _textReader = tr;
+            ImportStart();
         }
 
-        void Import_Start()
+        private void ImportStart()
         {
-            Import_InitializeVariables();
+            ImportInitializeVariables();
 
             try
             {
-                string line = string.Empty;
+                var line = string.Empty;
 
                 while (line != null)
                 {
-                    if (stopProcess)
+                    if (_stopProcess)
                     {
-                        processCompletionType = ProcessEndType.Cancelled;
+                        _processCompletionType = ProcessEndType.Cancelled;
                         break;
                     }
 
                     try
                     {
-                        line = Import_GetLine();
+                        line = ImportGetLine();
 
                         if (line == null)
                             break;
@@ -1176,28 +1090,24 @@ namespace MySqlConnector
                         if (line.Length == 0)
                             continue;
 
-                        Import_ProcessLine(line);
+                        ImportProcessLine(line);
                     }
                     catch (Exception ex)
                     {
                         line = string.Empty;
-                        _lastError = ex;
-                        _lastErrorSql = _sbImport.ToString();
+                        LastError = ex;
+                        LastErrorSql = _sbImport.ToString();
 
                         if (!string.IsNullOrEmpty(ImportInfo.ErrorLogFile))
-                        {
-                            File.AppendAllText(ImportInfo.ErrorLogFile, ex.Message + Environment.NewLine + Environment.NewLine + _lastErrorSql + Environment.NewLine + Environment.NewLine);
-                        }
+                            File.AppendAllText(ImportInfo.ErrorLogFile, ex.Message + Environment.NewLine + Environment.NewLine + LastErrorSql + Environment.NewLine + Environment.NewLine);
 
-                        _sbImport = new StringBuilder();
+                        _sbImport.Clear();
 
-                        GC.Collect();
-
-                        if (!ImportInfo.IgnoreSqlError)
-                        {
-                            StopAllProcess();
-                            throw;
-                        }
+                        if (ImportInfo.IgnoreSqlError) 
+                            continue;
+                        
+                        StopAllProcess();
+                        throw;
                     }
                 }
             }
@@ -1207,88 +1117,70 @@ namespace MySqlConnector
             }
         }
 
-        void Import_InitializeVariables()
+        private void ImportInitializeVariables()
         {
             if (Command == null)
-            {
                 throw new Exception("MySqlCommand is not initialized. Object not set to an instance of an object.");
-            }
 
             if (Command.Connection == null)
-            {
                 throw new Exception("MySqlCommand.Connection is not initialized. Object not set to an instance of an object.");
-            }
 
             if (Command.Connection.State != System.Data.ConnectionState.Open)
-            {
                 throw new Exception("MySqlCommand.Connection is not opened.");
-            }
-
-            //_createViewDetected = false;
-            //_dicImportRoutines = new Dictionary<string, bool>();
-            stopProcess = false;
-            //GetSHA512HashFromPassword(ImportInfo.EncryptionPassword);
-            _lastError = null;
-            timeStart = DateTime.Now;
+            
+            _stopProcess = false;
+            LastError = null;
+            _timeStart = DateTime.Now;
             _currentBytes = 0L;
             _sbImport = new StringBuilder();
             _mySqlScript = new MySqlScript(Command.Connection);
-            currentProcess = ProcessType.Import;
-            processCompletionType = ProcessEndType.Complete;
+            _currentProcess = ProcessType.Import;
+            _processCompletionType = ProcessEndType.Complete;
             _delimiter = ";";
-            _lastErrorSql = string.Empty;
+            LastErrorSql = string.Empty;
 
             if (ImportProgressChanged != null)
-                timerReport.Start();
-
+                _timerReport.Start();
         }
 
-        string Import_GetLine()
+        private string ImportGetLine()
         {
-            string line = textReader.ReadLine();
+            string line = _textReader.ReadLine();
 
             if (line == null)
                 return null;
 
             if (ImportProgressChanged != null)
-            {
-                _currentBytes = _currentBytes + (long)line.Length;
-            }
+                _currentBytes += line.Length;
 
             line = line.Trim();
-
-            if (Import_IsEmptyLine(line))
-            {
-                return string.Empty;
-            }
-
-            return line;
+            return ImportIsEmptyLine(line) ? string.Empty : line;
         }
 
-        void Import_ProcessLine(string line)
+        private void ImportProcessLine(string line)
         {
-            NextImportAction nextAction = Import_AnalyseNextAction(line);
+            NextImportAction nextAction = ImportAnalyseNextAction(line);
 
             switch (nextAction)
             {
                 case NextImportAction.Ignore:
                     break;
                 case NextImportAction.AppendLine:
-                    Import_AppendLine(line);
+                    ImportAppendLine(line);
                     break;
                 case NextImportAction.ChangeDelimiter:
-                    Import_ChangeDelimiter(line);
-                    Import_AppendLine(line);
+                    ImportChangeDelimiter(line);
+                    ImportAppendLine(line);
                     break;
                 case NextImportAction.AppendLineAndExecute:
-                    Import_AppendLineAndExecute(line);
+                    ImportAppendLineAndExecute(line);
                     break;
                 default:
                     break;
             }
         }
 
-        NextImportAction Import_AnalyseNextAction(string line)
+        private NextImportAction ImportAnalyseNextAction(string line)
         {
             if (line == null)
                 return NextImportAction.Ignore;
@@ -1305,24 +1197,24 @@ namespace MySqlConnector
             return NextImportAction.AppendLine;
         }
 
-        void Import_AppendLine(string line)
+        private void ImportAppendLine(string line)
         {
             _sbImport.AppendLine(line);
         }
 
-        void Import_ChangeDelimiter(string line)
+        private void ImportChangeDelimiter(string line)
         {
             string nextDelimiter = line.Substring(9);
             _delimiter = nextDelimiter.Replace(" ", string.Empty);
         }
 
-        void Import_AppendLineAndExecute(string line)
+        private void ImportAppendLineAndExecute(string line)
         {
             _sbImport.Append(line);
 
-            string _query = _sbImport.ToString();
+            var query = _sbImport.ToString();
 
-            if (_query.StartsWith("DELIMITER ", StringComparison.OrdinalIgnoreCase))
+            if (query.StartsWith("DELIMITER ", StringComparison.OrdinalIgnoreCase))
             {
                 _mySqlScript.Query = _sbImport.ToString();
                 _mySqlScript.Delimiter = _delimiter;
@@ -1330,16 +1222,14 @@ namespace MySqlConnector
             }
             else
             {
-                Command.CommandText = _query;
+                Command.CommandText = query;
                 Command.ExecuteNonQuery();
             }
 
-            _sbImport = new StringBuilder();
-
-            GC.Collect();
+            _sbImport.Clear();
         }
 
-        bool Import_IsEmptyLine(string line)
+        private bool ImportIsEmptyLine(string line)
         {
             if (line == null)
                 return true;
@@ -1363,90 +1253,102 @@ namespace MySqlConnector
 
         #endregion
 
-        void ReportEndProcess()
+        private void ReportEndProcess()
         {
-            timeEnd = DateTime.Now;
+            _timeEnd = DateTime.Now;
 
             StopAllProcess();
 
-            if (currentProcess == ProcessType.Export)
+            switch (_currentProcess)
             {
-                ReportProgress();
-                if (ExportCompleted != null)
+                case ProcessType.Export:
                 {
-                    ExportCompleteArgs arg = new ExportCompleteArgs(timeStart, timeEnd, processCompletionType, _lastError);
-                    ExportCompleted(this, arg);
-                }
-            }
-            else if (currentProcess == ProcessType.Import)
-            {
-                _currentBytes = _totalBytes;
-
-                ReportProgress();
-                if (ImportCompleted != null)
-                {
-                    MySqlBackup.ProcessEndType completedType = ProcessEndType.UnknownStatus;
-                    switch (processCompletionType)
+                    ReportProgress();
+                    if (ExportCompleted != null)
                     {
-                        case ProcessEndType.Complete:
-                            completedType = MySqlBackup.ProcessEndType.Complete;
-                            break;
-                        case ProcessEndType.Error:
-                            completedType = MySqlBackup.ProcessEndType.Error;
-                            break;
-                        case ProcessEndType.Cancelled:
-                            completedType = MySqlBackup.ProcessEndType.Cancelled;
-                            break;
+                        var arg = new ExportCompleteArgs(_timeStart, _timeEnd, _processCompletionType, LastError);
+                        ExportCompleted(this, arg);
                     }
 
-                    ImportCompleteArgs arg = new ImportCompleteArgs(completedType, timeStart, timeEnd, _lastError);
-                    ImportCompleted(this, arg);
+                    break;
+                }
+                case ProcessType.Import:
+                {
+                    _currentBytes = _totalBytes;
+
+                    ReportProgress();
+                    if (ImportCompleted != null)
+                    {
+                        var completedType = ProcessEndType.UnknownStatus;
+                        switch (_processCompletionType)
+                        {
+                            case ProcessEndType.Complete:
+                                completedType = ProcessEndType.Complete;
+                                break;
+                            case ProcessEndType.Error:
+                                completedType = ProcessEndType.Error;
+                                break;
+                            case ProcessEndType.Cancelled:
+                                completedType = ProcessEndType.Cancelled;
+                                break;
+                        }
+
+                        var arg = new ImportCompleteArgs(completedType, _timeStart, _timeEnd, LastError);
+                        ImportCompleted(this, arg);
+                    }
+
+                    break;
                 }
             }
         }
 
-        void timerReport_Elapsed(object sender, ElapsedEventArgs e)
+        private void TimerReportElapsed(object sender, ElapsedEventArgs e)
         {
             ReportProgress();
         }
 
-        void ReportProgress()
+        private void ReportProgress()
         {
-            if (currentProcess == ProcessType.Export)
+            switch (_currentProcess)
             {
-                if (ExportProgressChanged != null)
+                case ProcessType.Export when ExportProgressChanged == null:
+                    return;
+                case ProcessType.Export:
                 {
-                    ExportProgressArgs arg = new ExportProgressArgs(_currentTableName, _totalRowsInCurrentTable, _totalRowsInAllTables, _currentRowIndexInCurrentTable, _currentRowIndexInAllTable, _totalTables, _currentTableIndex);
+                    var arg = new ExportProgressArgs(_currentTableName, _totalRowsInCurrentTable, _totalRowsInAllTables, _currentRowIndexInCurrentTable, _currentRowIndexInAllTable, _totalTables, _currentTableIndex);
                     ExportProgressChanged(this, arg);
+                    break;
                 }
-            }
-            else if (currentProcess == ProcessType.Import)
-            {
-                if (ImportProgressChanged != null)
+                case ProcessType.Import:
                 {
-                    ImportProgressArgs arg = new ImportProgressArgs(_currentBytes, _totalBytes);
-                    ImportProgressChanged(this, arg);
+                    if (ImportProgressChanged != null)
+                    {
+                        var arg = new ImportProgressArgs(_currentBytes, _totalBytes);
+                        ImportProgressChanged(this, arg);
+                    }
+
+                    break;
                 }
             }
         }
 
         public void StopAllProcess()
         {
-            stopProcess = true;
-            timerReport.Stop();
+            _stopProcess = true;
+            _timerReport.Stop();
         }
 
         public void Dispose()
         {
             try
             {
-                _database.Dispose();
+                Database.Dispose();
             }
             catch { }
 
             try
             {
-                _server = null;
+                Server = null;
             }
             catch { }
 
